@@ -1,0 +1,84 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Роль определяет, что человек видит. Контакты покупателей скрыты от VIEWER —
+/// это учётка для показа на встречах и подрядчикам.
+enum Role {
+  OWNER
+  COMMERCIAL
+  SALES_HEAD
+  VIEWER
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  role         Role
+  passwordHash String
+  /// Счётчик неудачных входов подряд; после пяти вход закрывается на 15 минут.
+  failedLogins Int       @default(0)
+  lockedUntil  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  sessions Session[]
+}
+
+/// Сессия живёт в базе, а в cookie лежит только случайный токен.
+/// В базе хранится его SHA-256: утечка дампа не даёт войти ни под кем.
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+enum SyncStatus {
+  RUNNING
+  SUCCESS
+  FAILED
+}
+
+/// Каждый прогон сбора по источнику. Отсюда каждое окно пульта берёт
+/// «данные на такое-то время» — второе обязательное правило ТЗ.
+model SyncRun {
+  id          String     @id @default(cuid())
+  /// Идентификатор из lib/sync/sources.ts. Строка, а не enum: новый источник
+  /// не должен требовать миграции.
+  source      String
+  status      SyncStatus @default(RUNNING)
+  startedAt   DateTime   @default(now())
+  finishedAt  DateTime?
+  rowsFetched Int?
+  error       String?
+
+  payloads RawPayload[]
+
+  @@index([source, startedAt])
+}
+
+/// Ответ внешнего API целиком, как пришёл. На нём держится проваливание
+/// в сделки и пересчёт задним числом, когда поменяется формула.
+model RawPayload {
+  id        String   @id @default(cuid())
+  source    String
+  endpoint  String
+  fetchedAt DateTime @default(now())
+  payload   Json
+  syncRunId String?
+  syncRun   SyncRun? @relation(fields: [syncRunId], references: [id], onDelete: SetNull)
+
+  @@index([source, fetchedAt])
+  @@index([syncRunId])
+}

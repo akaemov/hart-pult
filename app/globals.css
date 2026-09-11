@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+/* Палитра из ТЗ: чертёжная синь на холодном бетонном сером.
+   Семантические цвета (ok/warn/crit) отделены от акцента. */
+:root {
+  --bg: #f2f4f6;
+  --surface: #ffffff;
+  --surface-2: #e9eef2;
+  --ink: #0f1a24;
+  --ink-2: #46596b;
+  --ink-3: #6b7e90;
+  --line: #d6dde4;
+  --line-2: #bfcad4;
+  --accent: #16548c;
+  --ok: #1f7a4d;
+  --ok-soft: #e1f0e8;
+  --warn: #9a5b08;
+  --warn-soft: #f7ebd9;
+  --crit: #a82722;
+  --crit-soft: #f7e4e3;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0c141b;
+    --surface: #131f29;
+    --surface-2: #1a2833;
+    --ink: #e7eef4;
+    --ink-2: #93a7b8;
+    --ink-3: #71869a;
+    --line: #24333f;
+    --line-2: #334756;
+    --accent: #3d86c6;
+    --ok: #43a97a;
+    --ok-soft: #12291f;
+    --warn: #d19a45;
+    --warn-soft: #2a2113;
+    --crit: #e0736d;
+    --crit-soft: #2e1817;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-line: var(--line);
+  --color-line-2: var(--line-2);
+  --color-accent: var(--accent);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-crit: var(--crit);
+  --color-crit-soft: var(--crit-soft);
+  /* Системные шрифты: сборка на сервере не должна зависеть от доступа к Google Fonts. */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+}
+
+@layer components {
+  .field {
+    height: 2.75rem;
+    padding: 0 0.75rem;
+    background: var(--surface);
+    border: 1px solid var(--line-2);
+    color: var(--ink);
+  }
+  .field:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -1px;
+  }
+}
+
+@layer components {
+  .chip {
+    display: inline-block;
+    padding: 0.125rem 0.5rem;
+    border-radius: 2px;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    white-space: nowrap;
+  }
+}
