@@ -110,19 +110,22 @@
 
 ## Запуск локально
 
-Docker не нужен: база — локальный Prisma Postgres.
-
-```bash
-npm install
-cp .env.example .env
-npm run db:dev                 # поднять локальную базу в фоне
-npx prisma migrate dev         # применить миграции
-npm run user:add -- --email you@example.ru --name "Имя" --role OWNER
-npm run dev                    # http://localhost:3050
+```
+npm run pult
 ```
 
-`user:add` печатает сгенерированный пароль один раз. Сброс пароля:
-`npm run user:add -- --email you@example.ru --reset`.
+Поднимает локальную базу, если она не запущена, ждёт её, стартует сервис на
+http://localhost:3050 и открывает браузер, когда страница готова отвечать.
+Остановить — Ctrl+C. Повторный запуск не плодит второй процесс, а говорит,
+что пульт уже работает.
+
+Отдельные шаги, если что-то пошло не так:
+
+```
+npm run db:dev     # только база (локальный Postgres из prisma dev)
+npm run dev        # только сервис, база должна быть уже поднята
+npm run user:add -- --email owner@hart.local --reset   # новый пароль
+```
 
 ## Диагностика amoCRM
 
