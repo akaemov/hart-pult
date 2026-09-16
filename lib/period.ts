@@ -1,6 +1,6 @@
 /// Период на экране. Значения фиксированные: произвольный ввод в адресной
 /// строке не должен превращаться в запрос за всю базу.
-export const PERIODS = [30, 90, 180] as const;
+export const PERIODS = [7, 30, 90, 180] as const;
 export type Period = (typeof PERIODS)[number];
 export const DEFAULT_PERIOD: Period = 90;
 
