@@ -167,3 +167,20 @@ export type AmoNote = {
 export type AmoCustomField = { id: number; name: string; type: string };
 
 export type AmoUser = { id: number; name: string };
+
+export type AmoStatus = {
+  id: number;
+  name: string;
+  sort: number;
+  color: string;
+  type: number;
+  pipeline_id: number;
+};
+
+export type AmoPipeline = {
+  id: number;
+  name: string;
+  sort: number;
+  is_main: boolean;
+  _embedded?: { statuses?: AmoStatus[] };
+};

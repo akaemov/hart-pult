@@ -17,6 +17,7 @@ export type LeadFilter = {
   days: Period;
   bucket: string | null;
   manager: string | null;
+  statusId: number | null;
   unhandled: boolean;
 };
 
@@ -36,19 +37,22 @@ function one(value: string | string[] | undefined): string | null {
 }
 
 export function parseLeadFilter(params: Params): LeadFilter {
+  const status = Number(one(params.status));
   return {
     days: parsePeriod(params.days),
     bucket: one(params.bucket),
     manager: one(params.manager),
+    statusId: Number.isInteger(status) && status > 0 ? status : null,
     unhandled: one(params.filter) === "unhandled",
   };
 }
 
-export function describeFilter(filter: LeadFilter): string {
+export function describeFilter(filter: LeadFilter, statusName?: string | null): string {
   if (filter.unhandled) {
     return `Открытые сделки без единого исходящего звонка дольше ${UNHANDLED_AFTER_MIN / 60} часов`;
   }
   const parts = [`за ${filter.days} дней`];
+  if (statusName) parts.push(`этап «${statusName}»`);
   if (filter.bucket) parts.push(`ответ «${filter.bucket}»`);
   if (filter.manager) parts.push(`менеджер ${filter.manager}`);
   return `Сделки ${parts.join(", ")}`;
@@ -68,6 +72,7 @@ export async function queryLeads(filter: LeadFilter, now = new Date()): Promise<
   const rows = await prisma.lead.findMany({
     where: {
       ...where,
+      ...(filter.statusId ? { statusId: filter.statusId } : {}),
       ...(filter.manager === "без ответственного"
         ? { responsibleUserId: null }
         : filter.manager

@@ -7,6 +7,7 @@ import { ROLE_LABELS } from "@/lib/auth/roles";
 /// остальные добавятся вместе со своими источниками.
 const TABS = [
   { href: "/", label: "Обзор" },
+  { href: "/funnel", label: "Воронка" },
   { href: "/processing", label: "Обработка" },
 ] as const;
 

@@ -39,7 +39,7 @@ export async function GET(request: Request) {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="leads-${Date.now()}.csv"`,
-      "X-Filter": encodeURIComponent(describeFilter(filter)),
+        "X-Filter": encodeURIComponent(describeFilter(filter)),
     },
   });
 }

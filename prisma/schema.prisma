@@ -155,3 +155,34 @@ model Call {
   @@index([leadId, createdAt])
   @@index([createdAt])
 }
+
+/// Воронка продаж из amoCRM.
+model Pipeline {
+  id       Int      @id
+  name     String
+  sort     Int
+  isMain   Boolean
+  syncedAt DateTime @updatedAt
+
+  statuses Status[]
+}
+
+/// Этап воронки. Ключ составной: системные статусы «успешно» и «закрыто»
+/// имеют одинаковые id (142 и 143) во всех воронках сразу.
+model Status {
+  id         Int
+  pipelineId Int
+  pipeline   Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  name       String
+  /// Порядок в воронке, как его видит отдел продаж. У «успешно» и «закрыто»
+  /// он заведомо больше всех, чтобы они всегда оказывались в конце.
+  sort       Int
+  /// Цвет этапа из amoCRM: в пульте он тот же, что у менеджеров в CRM.
+  color      String
+  /// 1 — «Неразобранное», 0 — обычный этап.
+  type       Int
+  syncedAt   DateTime @updatedAt
+
+  @@id([pipelineId, id])
+  @@index([pipelineId, sort])
+}

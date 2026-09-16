@@ -4,6 +4,7 @@ import { leadUrl } from "@/lib/amo-link";
 import { requireUser } from "@/lib/auth/dal";
 import { formatDateTime, formatMinutes } from "@/lib/format";
 import { describeFilter, parseLeadFilter, queryLeads } from "@/lib/leads-query";
+import { prisma } from "@/lib/prisma";
 
 const PAGE_LIMIT = 300;
 
@@ -11,7 +12,12 @@ export default async function LeadsPage(props: PageProps<"/processing/leads">) {
   const user = await requireUser();
   const params = await props.searchParams;
   const filter = parseLeadFilter(params);
-  const leads = await queryLeads(filter);
+  const [leads, status] = await Promise.all([
+    queryLeads(filter),
+    filter.statusId
+      ? prisma.status.findFirst({ where: { id: filter.statusId }, select: { name: true } })
+      : null,
+  ]);
   const shown = leads.slice(0, PAGE_LIMIT);
   const canSeeNames = user.role !== "VIEWER";
 
@@ -31,7 +37,9 @@ export default async function LeadsPage(props: PageProps<"/processing/leads">) {
           </Link>
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div className="flex flex-col gap-1">
-              <h1 className="text-xl font-semibold tracking-tight">{describeFilter(filter)}</h1>
+              <h1 className="text-xl font-semibold tracking-tight">
+                {describeFilter(filter, status?.name)}
+              </h1>
               <p className="text-sm text-ink-2">
                 Найдено {leads.length}
                 {leads.length > PAGE_LIMIT && ` · показаны первые ${PAGE_LIMIT}`}

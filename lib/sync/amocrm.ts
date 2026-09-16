@@ -1,4 +1,11 @@
-import { amoList, type AmoCustomField, type AmoLead, type AmoNote, type AmoUser } from "../amo";
+import {
+  amoList,
+  type AmoCustomField,
+  type AmoLead,
+  type AmoNote,
+  type AmoPipeline,
+  type AmoUser,
+} from "../amo";
 import { prisma } from "../prisma";
 import type { Collector, SyncContext } from "./run";
 
@@ -55,6 +62,39 @@ export function amocrmCollector(days: number): Collector {
     const sourceFieldIds = new Set(
       fields.filter((field) => SOURCE_FIELD.test(field.name)).map((field) => field.id),
     );
+
+    // Воронки и этапы: без них в пульте были бы голые номера статусов.
+    const pipelines = await collectAll(
+      amoList<AmoPipeline>("/api/v4/leads/pipelines", "pipelines"),
+    );
+    await ctx.saveRaw("/api/v4/leads/pipelines", pipelines as unknown as object[]);
+
+    for (const pipeline of pipelines) {
+      const data = { name: pipeline.name, sort: pipeline.sort, isMain: pipeline.is_main };
+      await prisma.pipeline.upsert({
+        where: { id: pipeline.id },
+        create: { id: pipeline.id, ...data },
+        update: data,
+      });
+
+      const statuses = pipeline._embedded?.statuses ?? [];
+      await prisma.$transaction(
+        statuses.map((status) => {
+          const row = {
+            name: status.name,
+            sort: status.sort,
+            color: status.color,
+            type: status.type,
+          };
+          return prisma.status.upsert({
+            where: { pipelineId_id: { pipelineId: pipeline.id, id: status.id } },
+            create: { id: status.id, pipelineId: pipeline.id, ...row },
+            update: row,
+          });
+        }),
+        TX,
+      );
+    }
 
     const users = await collectAll(amoList<AmoUser>("/api/v4/users", "users"));
     await ctx.saveRaw("/api/v4/users", users as unknown as object[]);
