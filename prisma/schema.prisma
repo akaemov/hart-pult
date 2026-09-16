@@ -82,3 +82,76 @@ model RawPayload {
   @@index([source, fetchedAt])
   @@index([syncRunId])
 }
+
+/// Менеджер из amoCRM. Имя нужно, чтобы в окнах стояли люди, а не id.
+model AmoUser {
+  id       Int      @id
+  name     String
+  syncedAt DateTime @updatedAt
+
+  leads Lead[]
+}
+
+/// Сделка amoCRM — обращение. Источник правды по лидам и воронке.
+///
+/// Персональные данные покупателей здесь не хранятся: из списка сделок
+/// открывается карточка в amoCRM, где они и так есть у того, кому положено.
+/// Так пульт остаётся вне периметра хранения ПД.
+model Lead {
+  id                  Int       @id
+  name                String
+  createdAt           DateTime
+  statusId            Int
+  pipelineId          Int
+  /// 142 и 143 — системные статусы «реализовано» и «закрыто без успеха».
+  isClosed            Boolean
+  /// Заполнено ли хоть одно поле источника. Считается при сборе: набор полей
+  /// у аккаунта свой, и вычислять это на каждый показ страницы незачем.
+  hasSource           Boolean
+  /// Первый исходящий звонок после создания сделки. Денормализация: иначе
+  /// каждое окно пересчитывало бы минимум по всем звонкам.
+  firstOutgoingCallAt DateTime?
+  responsibleUserId   Int?
+  responsible         AmoUser?  @relation(fields: [responsibleUserId], references: [id], onDelete: SetNull)
+  syncedAt            DateTime  @updatedAt
+
+  contacts LeadContact[]
+  calls    Call[]
+
+  @@index([createdAt])
+  @@index([responsibleUserId])
+}
+
+/// Связь сделки с контактом. Телефония пишет звонок либо на сделку, либо
+/// на контакт — без этой связи половина звонков не найдёт свою сделку.
+model LeadContact {
+  leadId    Int
+  contactId Int
+  lead      Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@id([leadId, contactId])
+  @@index([contactId])
+}
+
+enum CallDirection {
+  IN
+  OUT
+}
+
+/// Звонок из примечаний amoCRM. Телефон не хранится — он есть в карточке.
+model Call {
+  /// id примечания в amoCRM.
+  id          Int           @id
+  direction   CallDirection
+  createdAt   DateTime
+  durationSec Int?
+  /// Через какую телефонию прошёл звонок. Пустая строка, если не указана.
+  provider    String
+  /// К какой сделке отнесён. Null — звонок контакту, у которого нет сделки
+  /// в собранном периоде: он не теряется, но в окна не попадает.
+  leadId      Int?
+  lead        Lead?         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId, createdAt])
+  @@index([createdAt])
+}

@@ -7,6 +7,7 @@
 ///
 /// Скрипт ничего не пишет в amoCRM и ничего не сохраняет в базу: только читает
 /// и складывает отчёт в reports/. Запуск: npm run diagnose -- --days 90
+import "../lib/load-env";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { amoList, type AmoCustomField, type AmoLead, type AmoNote, type AmoUser } from "../lib/amo";
 import { humanMinutes, median, minutesBetween, share } from "../lib/stats";
@@ -259,11 +260,6 @@ async function main() {
   console.log(`\nОтчёт сохранён: ${file}`);
 }
 
-try {
-  process.loadEnvFile(".env");
-} catch {
-  // .env может отсутствовать — тогда переменные берутся из окружения.
-}
 
 main().catch((error) => {
   console.error(`\n${error instanceof Error ? error.message : error}`);

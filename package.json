@@ -13,7 +13,8 @@
     "db:dev": "prisma dev --name hart-pult --detach",
     "user:add": "tsx scripts/user-add.ts",
     "postinstall": "prisma generate",
-    "diagnose": "tsx scripts/diagnose.ts"
+    "diagnose": "tsx scripts/diagnose.ts",
+    "sync": "tsx scripts/sync.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.0",
