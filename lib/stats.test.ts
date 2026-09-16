@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { humanMinutes, median, minutesBetween, share } from "./stats";
+import { normalizeSubdomain } from "./amo";
 
 describe("median", () => {
   it("возвращает null на пустом наборе", () => {
@@ -44,5 +45,13 @@ describe("humanMinutes", () => {
     expect(humanMinutes(135)).toBe("2 ч 15 мин");
     expect(humanMinutes(60 * 26)).toBe("1 дн 2 ч");
     expect(humanMinutes(null)).toBe("нет данных");
+  });
+});
+
+describe("normalizeSubdomain", () => {
+  it("принимает и поддомен, и целый адрес кабинета", () => {
+    expect(normalizeSubdomain("digitalhartdevru")).toBe("digitalhartdevru");
+    expect(normalizeSubdomain("https://digitalhartdevru.amocrm.ru/")).toBe("digitalhartdevru");
+    expect(normalizeSubdomain(" digitalhartdevru.amocrm.ru ")).toBe("digitalhartdevru");
   });
 });

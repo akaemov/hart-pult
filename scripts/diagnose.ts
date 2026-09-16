@@ -21,6 +21,21 @@ const SLOW_REPLY_MIN = 30;
 
 const SOURCE_FIELD = /utm|источник|source|канал|откуда|реклам/i;
 
+/// Часовой пояс объекта. amoCRM его в /api/v4/account не отдаёт, поэтому задан
+/// здесь: разбивка «рабочие часы против ночи» без него бессмысленна.
+const OFFICE_TZ_OFFSET = 5;
+const OFFICE_FROM = 9;
+const OFFICE_TO = 20;
+
+const DELAY_BUCKETS: [string, number, number][] = [
+  ["до 5 минут", 0, 5],
+  ["5–30 минут", 5, 30],
+  ["30 минут – 2 часа", 30, 120],
+  ["2–8 часов", 120, 480],
+  ["8–24 часа", 480, 1440],
+  ["больше суток", 1440, Infinity],
+];
+
 function arg(name: string, fallback: number): number {
   const index = process.argv.indexOf(`--${name}`);
   if (index === -1) return fallback;
@@ -120,6 +135,16 @@ async function main() {
   );
   const slow = delays.filter((minutes) => minutes > SLOW_REPLY_MIN);
 
+  const officeHour = (seconds: number) =>
+    new Date((seconds + OFFICE_TZ_OFFSET * 3600) * 1000).getUTCHours();
+  const dayLeads = leads.filter((lead) => {
+    const hour = officeHour(lead.created_at);
+    return hour >= OFFICE_FROM && hour < OFFICE_TO;
+  });
+  const dayDelays = dayLeads
+    .filter((lead) => firstCallByLead.has(lead.id))
+    .map((lead) => minutesBetween(lead.created_at, firstCallByLead.get(lead.id)!));
+
   const filled = (lead: AmoLead, fieldId: number) =>
     (lead.custom_fields_values ?? []).some(
       (value) => value.field_id === fieldId && value.values?.some((v) => v.value !== null && v.value !== ""),
@@ -197,6 +222,21 @@ async function main() {
   say(`- Сделок с исходящим звонком: **${delays.length}** из ${leads.length} (${fmtShare(share(delays.length, leads.length))})`);
   say(`- Ответ дольше ${SLOW_REPLY_MIN} минут: **${fmtShare(share(slow.length, delays.length))}**`);
   say(`- Открытых сделок без единого звонка дольше ${UNHANDLED_AFTER_MIN / 60} часов: **${openWithoutCall.length}**`);
+  say();
+  say("Медиана прячет форму распределения, поэтому она разложена по корзинам:");
+  say();
+  say("| Время до первого звонка | Сделок | Доля отвеченных |");
+  say("|---|---:|---:|");
+  for (const [name, from, to] of DELAY_BUCKETS) {
+    const count = delays.filter((minutes) => minutes >= from && minutes < to).length;
+    say(`| ${name} | ${count} | ${fmtShare(share(count, delays.length))} |`);
+  }
+  say();
+  say("Проверка на ночные заявки: считается отдельно медиана по сделкам, созданным");
+  say("в рабочие часы. Если она совпадает с общей, дело не в том, что заявка пришла ночью.");
+  say();
+  say(`- Заявок в рабочие часы (09:00–20:00, UTC+5): **${dayLeads.length}** из ${leads.length}`);
+  say(`- Медиана ответа по ним: **${humanMinutes(median(dayDelays))}** против **${humanMinutes(median(delays))}** по всем`);
   say();
   say("## 4. По ответственным");
   say();

@@ -14,6 +14,18 @@ const MAX_ATTEMPTS = 4;
 
 let lastRequestAt = 0;
 
+/// В .env регулярно попадает не поддомен, а целый адрес кабинета —
+/// «https://example.amocrm.ru/». Приводим к одному слову: иначе запрос уходит
+/// на https://https://example.amocrm.ru.amocrm.ru и падает с «fetch failed»,
+/// где про настоящую причину не сказано ни слова.
+export function normalizeSubdomain(value: string): string {
+  return value
+    .trim()
+    .replace(/^https?:\/\//i, "")
+    .replace(/\/.*$/, "")
+    .replace(/\.amocrm\.(ru|com)$/i, "");
+}
+
 function config() {
   const subdomain = process.env.AMO_SUBDOMAIN;
   const token = process.env.AMO_LONG_LIVED_TOKEN;
@@ -25,7 +37,7 @@ function config() {
     );
   }
 
-  return { subdomain, token };
+  return { subdomain: normalizeSubdomain(subdomain), token };
 }
 
 function sleep(ms: number) {
@@ -69,9 +81,23 @@ export async function amoGet<T>(
     if (wait > 0) await sleep(wait);
     lastRequestAt = Date.now();
 
-    const response = await fetch(url, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    // Обрыв соединения на длинной выгрузке — обычное дело: тысячи запросов
+    // подряд, и любой из них может оборваться. fetch бросает исключение,
+    // а не возвращает ответ, поэтому повтор нужен отдельной веткой.
+    let response: Response;
+    try {
+      response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    } catch (cause) {
+      const reason = cause instanceof Error ? (cause.cause as { code?: string })?.code ?? cause.message : String(cause);
+      if (attempt === MAX_ATTEMPTS) {
+        throw new Error(
+          `Не удалось соединиться с https://${subdomain}.amocrm.ru (${reason}). ` +
+            "Проверьте AMO_SUBDOMAIN — это одно слово без https:// и без .amocrm.ru.",
+        );
+      }
+      await sleep(attempt * 1000);
+      continue;
+    }
 
     if (response.status === 204) return null;
     if (response.ok) return (await response.json()) as T;
