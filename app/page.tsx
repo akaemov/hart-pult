@@ -1,7 +1,8 @@
+import Link from "next/link";
 import { FreshnessBadge } from "@/components/freshness-badge";
 import { PultHeader } from "@/components/pult-header";
 import { requireUser } from "@/lib/auth/dal";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, TIME_ZONE_LABEL } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { classifyFreshness } from "@/lib/sync/freshness";
 import { SOURCES } from "@/lib/sync/sources";
@@ -34,14 +35,15 @@ export default async function OverviewPage() {
           <h1 className="text-2xl font-semibold tracking-tight text-balance">Обзор</h1>
           <p className="max-w-[62ch] text-ink-2">
             Показатели появятся здесь по мере подключения источников. Первым идёт amoCRM —
-            блок обработки обращений.
+            блок обработки обращений. Название источника открывает его разбор: что собрано,
+            какие дыры и что мешает считать.
           </p>
         </section>
 
         <section className="flex flex-col gap-4">
           <div className="flex items-baseline justify-between gap-4 border-b border-line pb-2">
             <h2 className="font-semibold">Состояние источников</h2>
-            <span className="font-mono text-xs text-ink-3">время — МСК</span>
+            <span className="font-mono text-xs text-ink-3">время — {TIME_ZONE_LABEL}</span>
           </div>
           <div className="overflow-x-auto border border-line bg-surface">
             <table className="w-full min-w-[640px] text-sm">
@@ -63,7 +65,14 @@ export default async function OverviewPage() {
                   const run = lastRun.get(source.id);
                   return (
                     <tr key={source.id} className="border-b border-line last:border-b-0 align-top">
-                      <td className="px-4 py-3 font-medium">{source.label}</td>
+                      <td className="px-4 py-3 font-medium">
+                        <Link
+                          href={`/sources/${source.id}`}
+                          className="underline decoration-line-2 underline-offset-4 hover:text-accent"
+                        >
+                          {source.label}
+                        </Link>
+                      </td>
                       <td className="px-4 py-3 text-ink-2">{source.feeds}</td>
                       <td className="px-4 py-3">
                         <FreshnessBadge freshness={freshness} />

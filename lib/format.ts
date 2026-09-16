@@ -5,6 +5,10 @@
 /// часах. Меняется одной строкой, если объект окажется в другом поясе.
 export const TIME_ZONE = "Asia/Yekaterinburg";
 
+/// Подпись пояса в интерфейсе. Рядом с каждым временем должно быть видно,
+/// в чьих часах оно показано, иначе «14:05» ничего не значит.
+export const TIME_ZONE_LABEL = "Екатеринбург";
+
 const dateTime = new Intl.DateTimeFormat("ru-RU", {
   timeZone: TIME_ZONE,
   day: "numeric",

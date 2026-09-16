@@ -1,5 +1,5 @@
 import type { Freshness } from "@/lib/sync/freshness";
-import { formatAge, formatDateTime } from "@/lib/format";
+import { formatAge, formatDateTime, TIME_ZONE_LABEL } from "@/lib/format";
 
 /// Отметка свежести — обязательна на каждом окне пульта (правило 2 из ТЗ).
 export function FreshnessBadge({ freshness }: { freshness: Freshness }) {
@@ -11,7 +11,7 @@ export function FreshnessBadge({ freshness }: { freshness: Freshness }) {
   return (
     <span
       className={`chip ${stale ? "bg-warn-soft text-warn" : "bg-ok-soft text-ok"}`}
-      title={`Последний успешный сбор: ${formatDateTime(freshness.lastSuccessAt)} МСК`}
+      title={`Последний успешный сбор: ${formatDateTime(freshness.lastSuccessAt)}, ${TIME_ZONE_LABEL}`}
     >
       {stale ? "устарели · " : ""}
       {formatAge(freshness.ageMinutes)}

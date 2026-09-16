@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { GradeLegend } from "@/components/grade-legend";
 import { PeriodSwitch } from "@/components/period-switch";
 import { PultHeader } from "@/components/pult-header";
 import { PultWindow } from "@/components/pult-window";
@@ -93,6 +94,8 @@ export default async function ProcessingPage(props: PageProps<"/processing">) {
           </div>
           <PeriodSwitch current={days} basePath="/processing" />
         </div>
+
+        <GradeLegend present={["A"]} />
 
         <PultWindow
           title="Необработанные обращения"
