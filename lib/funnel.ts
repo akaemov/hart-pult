@@ -46,3 +46,59 @@ export function buildFunnel(stages: StageInput[]): Funnel {
       })),
   };
 }
+
+export type ManagerCell = { manager: string; statusId: number; leads: number };
+
+export type ManagerFunnel = {
+  manager: string;
+  total: number;
+  /// Этапы в порядке воронки, включая пустые: строки менеджеров должны
+  /// совпадать колонка в колонку, иначе таблицу не прочитать.
+  stages: { statusId: number; name: string; color: string; leads: number; share: number | null }[];
+  won: number;
+  lost: number;
+  /// Сделки, которые ещё в работе: не «успешно» и не «закрыто».
+  open: number;
+};
+
+/// Системные статусы amoCRM.
+const WON = 142;
+const LOST = 143;
+
+/// Разрез воронки по ответственным. Менеджеры идут по числу сделок:
+/// первым тот, через кого проходит основной поток.
+export function buildManagerFunnels(cells: ManagerCell[], stages: StageInput[]): ManagerFunnel[] {
+  const order = [...stages].sort((a, b) => a.sort - b.sort);
+  const byManager = new Map<string, Map<number, number>>();
+
+  for (const cell of cells) {
+    const counts = byManager.get(cell.manager) ?? new Map<number, number>();
+    counts.set(cell.statusId, (counts.get(cell.statusId) ?? 0) + cell.leads);
+    byManager.set(cell.manager, counts);
+  }
+
+  return [...byManager]
+    .map(([manager, counts]) => {
+      const total = [...counts.values()].reduce((sum, leads) => sum + leads, 0);
+      const won = counts.get(WON) ?? 0;
+      const lost = counts.get(LOST) ?? 0;
+      return {
+        manager,
+        total,
+        won,
+        lost,
+        open: total - won - lost,
+        stages: order.map((stage) => {
+          const leads = counts.get(stage.statusId) ?? 0;
+          return {
+            statusId: stage.statusId,
+            name: stage.name,
+            color: stage.color,
+            leads,
+            share: share(leads, total),
+          };
+        }),
+      };
+    })
+    .sort((a, b) => b.total - a.total);
+}
