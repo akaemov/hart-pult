@@ -161,3 +161,48 @@ export function isUnhandled(lead: LeadRow, now: Date): boolean {
   if (lead.firstOutgoingCallAt) return false;
   return waitingMinutes(lead, now) > UNHANDLED_AFTER_MIN;
 }
+
+export type ManagerComparisonRow = {
+  name: string;
+  current: ManagerRow | null;
+  previous: ManagerRow | null;
+  /// Разница в сделках, штуки.
+  totalDelta: number | null;
+  /// Разницы в долях — в процентных пунктах, а не в процентах от процента.
+  fastShareDelta: number | null;
+  answeredShareDelta: number | null;
+  /// Разница медианы в минутах. Отрицательная — стали отвечать быстрее.
+  medianDelta: number | null;
+};
+
+function delta(now: number | null | undefined, before: number | null | undefined): number | null {
+  if (now === null || now === undefined || before === null || before === undefined) return null;
+  return Math.round((now - before) * 10) / 10;
+}
+
+/// Сравнение менеджеров между двумя периодами. Менеджер, работавший только
+/// в одном из них, не выбрасывается: увольнение и выход нового человека —
+/// это ровно то, что нужно увидеть в сравнении.
+export function compareManagers(
+  current: LeadRow[],
+  previous: LeadRow[],
+): ManagerComparisonRow[] {
+  const now = new Map(byManager(current).map((row) => [row.name, row]));
+  const before = new Map(byManager(previous).map((row) => [row.name, row]));
+
+  return [...new Set([...now.keys(), ...before.keys()])]
+    .map((name) => {
+      const currentRow = now.get(name) ?? null;
+      const previousRow = before.get(name) ?? null;
+      return {
+        name,
+        current: currentRow,
+        previous: previousRow,
+        totalDelta: delta(currentRow?.total, previousRow?.total),
+        fastShareDelta: delta(currentRow?.fastShare, previousRow?.fastShare),
+        answeredShareDelta: delta(currentRow?.answeredShare, previousRow?.answeredShare),
+        medianDelta: delta(currentRow?.medianMinutes, previousRow?.medianMinutes),
+      };
+    })
+    .sort((a, b) => (b.current?.total ?? 0) - (a.current?.total ?? 0));
+}

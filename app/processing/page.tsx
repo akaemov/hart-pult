@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { GradeLegend } from "@/components/grade-legend";
+import { ManagerComparison } from "@/components/manager-comparison";
 import { PeriodSwitch } from "@/components/period-switch";
 import { PultHeader } from "@/components/pult-header";
 import { PultWindow } from "@/components/pult-window";
@@ -7,9 +8,11 @@ import { requireUser } from "@/lib/auth/dal";
 import { formatDateTime, formatMinutes } from "@/lib/format";
 import { parsePeriod, since } from "@/lib/period";
 import { prisma } from "@/lib/prisma";
+import { monthsAgo } from "@/lib/month";
 import {
   byHour,
   byManager,
+  compareManagers,
   calendarWaitingMinutes,
   isUnhandled,
   summarizeReplies,
@@ -32,7 +35,17 @@ export default async function ProcessingPage(props: PageProps<"/processing">) {
   const days = parsePeriod(params.days);
   const now = new Date();
 
-  const [leadRows, openWithoutCall, freshness] = await Promise.all([
+  const lastMonth = monthsAgo(1, now);
+  const monthBefore = monthsAgo(2, now);
+
+  const selectLead = {
+    id: true,
+    createdAt: true,
+    firstOutgoingCallAt: true,
+    responsible: { select: { name: true } },
+  } as const;
+
+  const [leadRows, openWithoutCall, lastMonthRows, monthBeforeRows, freshness] = await Promise.all([
     prisma.lead.findMany({
       where: { createdAt: { gte: since(days, now) } },
       select: {
@@ -56,6 +69,14 @@ export default async function ProcessingPage(props: PageProps<"/processing">) {
         responsible: { select: { name: true } },
       },
     }),
+    prisma.lead.findMany({
+      where: { createdAt: { gte: lastMonth.from, lt: lastMonth.to } },
+      select: selectLead,
+    }),
+    prisma.lead.findMany({
+      where: { createdAt: { gte: monthBefore.from, lt: monthBefore.to } },
+      select: selectLead,
+    }),
     freshnessOf("amocrm", now),
   ]);
 
@@ -75,6 +96,23 @@ export default async function ProcessingPage(props: PageProps<"/processing">) {
     .filter((lead) => isUnhandled(lead, now));
   const unhandled = unhandledLeads.length;
   const unhandledOldest = unhandledLeads.slice(0, 8);
+
+  const toRow = (lead: {
+    id: number;
+    createdAt: Date;
+    firstOutgoingCallAt: Date | null;
+    responsible: { name: string } | null;
+  }) => ({
+    id: lead.id,
+    createdAt: lead.createdAt,
+    firstOutgoingCallAt: lead.firstOutgoingCallAt,
+    responsibleName: lead.responsible?.name ?? null,
+  });
+
+  const monthComparison = compareManagers(
+    lastMonthRows.map(toRow),
+    monthBeforeRows.map(toRow),
+  );
 
   const summary = summarizeReplies(leads);
   const managers = byManager(leads);
@@ -275,6 +313,29 @@ export default async function ProcessingPage(props: PageProps<"/processing">) {
               </tbody>
             </table>
           </div>
+        </PultWindow>
+
+        <PultWindow
+          title={`Менеджеры за ${lastMonth.label}`}
+          grade="A"
+          sources={SOURCES_LABEL}
+          freshness={freshness}
+        >
+          <span className="text-sm text-ink-2">
+            Закрытый календарный месяц целиком, рядом — разница с предыдущим месяцем
+            ({monthBefore.label}). Текущий месяц сюда не берётся: в нём прошло разное число
+            дней, и сравнение говорило бы о календаре, а не о работе.
+          </span>
+          <ManagerComparison
+            rows={monthComparison}
+            currentLabel={lastMonth.label}
+            previousLabel={monthBefore.label}
+            linkPeriodDays={days}
+          />
+          <span className="text-xs text-ink-3">
+            Доли сравниваются в процентных пунктах. У медианы зелёным отмечено уменьшение:
+            отвечать стали быстрее.
+          </span>
         </PultWindow>
 
         <PultWindow

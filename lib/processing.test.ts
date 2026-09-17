@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   bucketFor,
+  compareManagers,
   byHour,
   byManager,
   delayMinutes,
@@ -115,5 +116,48 @@ describe("byHour", () => {
 
   it("всегда отдаёт 24 часа", () => {
     expect(byHour([])).toHaveLength(24);
+  });
+});
+
+describe("compareManagers", () => {
+  // 04:00Z — девять утра по месту; все моменты в рабочих часах будней.
+  const august = [
+    lead("2026-08-12T04:00:00Z", "2026-08-12T04:10:00Z", "Артур"),
+    lead("2026-08-12T05:00:00Z", "2026-08-12T05:40:00Z", "Артур"),
+    lead("2026-08-12T05:00:00Z", null, "Вадим"),
+  ];
+  const july = [
+    lead("2026-07-15T04:00:00Z", "2026-07-15T06:00:00Z", "Артур"),
+    lead("2026-07-15T04:00:00Z", "2026-07-15T04:05:00Z", "Елена"),
+  ];
+
+  it("считает разницу медианы: минус — стали отвечать быстрее", () => {
+    const artur = compareManagers(august, july).find((row) => row.name === "Артур")!;
+    expect(artur.current?.medianMinutes).toBe(25);
+    expect(artur.previous?.medianMinutes).toBe(120);
+    expect(artur.medianDelta).toBe(-95);
+  });
+
+  it("разницы долей считает в процентных пунктах", () => {
+    const artur = compareManagers(august, july).find((row) => row.name === "Артур")!;
+    // Было 0% быстрых из одного отвеченного, стало 50% из двух.
+    expect(artur.fastShareDelta).toBe(50);
+  });
+
+  it("не теряет тех, кто работал только в одном из периодов", () => {
+    const rows = compareManagers(august, july);
+    const elena = rows.find((row) => row.name === "Елена")!;
+    const vadim = rows.find((row) => row.name === "Вадим")!;
+    expect(elena.current).toBeNull();
+    expect(elena.medianDelta).toBeNull();
+    expect(vadim.previous).toBeNull();
+  });
+
+  it("сортирует по числу сделок текущего периода", () => {
+    expect(compareManagers(august, july).map((row) => row.name)).toEqual([
+      "Артур",
+      "Вадим",
+      "Елена",
+    ]);
   });
 });
