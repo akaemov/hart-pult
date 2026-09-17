@@ -7,11 +7,16 @@ import { TIME_ZONE } from "./format";
 /// минут работы. Считаем только минуты внутри окна — тогда медиана говорит
 /// о работе отдела, а не о том, что ночью никто не звонит.
 ///
-/// Выходные не исключаются: в недвижимости суббота и воскресенье — рабочие
-/// дни, и офис продаж открыт.
+/// Выходные тоже не в счёт. По данным аккаунта офис звонит по будням:
+/// с понедельника по пятницу 330–480 исходящих в день, в субботу 55,
+/// в воскресенье один. Заявки при этом в выходные идут — около 18% потока,
+/// и их ожидание переносится на утро понедельника.
 
 export const WORK_START_HOUR = 9;
 export const WORK_END_HOUR = 20;
+/// Рабочие дни недели, 1 — понедельник, 7 — воскресенье.
+export const WORK_DAYS = [1, 2, 3, 4, 5] as const;
+export const WORK_DAYS_LABEL = "пн–пт";
 
 const MINUTES_IN_DAY = 24 * 60;
 
@@ -41,6 +46,22 @@ function offsetMinutes(date: Date): number {
   return Math.round((asUtc - date.getTime()) / 60_000);
 }
 
+/// День недели по времени объекта: 1 — понедельник, 7 — воскресенье.
+/// 1 января 1970 было четвергом — отсюда сдвиг на 4.
+function weekdayOfLocalDay(localDay: number): number {
+  return ((((localDay + 3) % 7) + 7) % 7) + 1;
+}
+
+function isWorkingLocalDay(localDay: number): boolean {
+  return (WORK_DAYS as readonly number[]).includes(weekdayOfLocalDay(localDay));
+}
+
+/// Рабочий ли это день недели.
+export function isWorkingDay(date: Date): boolean {
+  const minutes = date.getTime() / 60_000 + offsetMinutes(date);
+  return isWorkingLocalDay(Math.floor(minutes / MINUTES_IN_DAY));
+}
+
 /// Час суток по времени объекта.
 export function localHour(date: Date): number {
   const minutes = date.getTime() / 60_000 + offsetMinutes(date);
@@ -50,11 +71,12 @@ export function localHour(date: Date): number {
 /// Внутри ли момент рабочего окна.
 export function isWorkingHour(date: Date): boolean {
   const hour = localHour(date);
-  return hour >= WORK_START_HOUR && hour < WORK_END_HOUR;
+  return isWorkingDay(date) && hour >= WORK_START_HOUR && hour < WORK_END_HOUR;
 }
 
-/// Минуты рабочего времени между двумя моментами. Ночь и вечер выкидываются
-/// целиком, поэтому результат всегда меньше календарной разницы.
+/// Минуты рабочего времени между двумя моментами. Ночь, вечер и выходные
+/// выкидываются целиком, поэтому результат всегда меньше календарной разницы.
+/// Заявка, пришедшая в субботу, начинает «ждать» в понедельник в 9:00.
 export function workingMinutesBetween(from: Date, to: Date): number {
   if (to <= from) return 0;
 
@@ -66,6 +88,8 @@ export function workingMinutesBetween(from: Date, to: Date): number {
   const firstDay = Math.floor(localFrom / MINUTES_IN_DAY) * MINUTES_IN_DAY;
 
   for (let day = firstDay; day < localTo; day += MINUTES_IN_DAY) {
+    if (!isWorkingLocalDay(day / MINUTES_IN_DAY)) continue;
+
     const start = Math.max(localFrom, day + WORK_START_HOUR * 60);
     const end = Math.min(localTo, day + WORK_END_HOUR * 60);
     if (end > start) total += end - start;

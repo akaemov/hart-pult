@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  isWorkingDay,
   isWorkingHour,
   localHour,
   workingMinutesBetween,
@@ -58,5 +59,33 @@ describe("workingMinutesBetween", () => {
   it("обратный порядок и совпадающие моменты дают ноль", () => {
     expect(workingMinutesBetween(at("2026-09-16T05:00:00Z"), at("2026-09-16T05:00:00Z"))).toBe(0);
     expect(workingMinutesBetween(at("2026-09-16T06:00:00Z"), at("2026-09-16T05:00:00Z"))).toBe(0);
+  });
+});
+
+describe("выходные", () => {
+  it("суббота и воскресенье — не рабочие дни", () => {
+    expect(isWorkingDay(at("2026-09-18T05:00:00Z"))).toBe(true); // пятница
+    expect(isWorkingDay(at("2026-09-19T05:00:00Z"))).toBe(false); // суббота
+    expect(isWorkingDay(at("2026-09-20T05:00:00Z"))).toBe(false); // воскресенье
+    expect(isWorkingDay(at("2026-09-21T05:00:00Z"))).toBe(true); // понедельник
+  });
+
+  it("рабочий час в субботу — всё равно не рабочий", () => {
+    expect(isWorkingHour(at("2026-09-19T05:00:00Z"))).toBe(false);
+  });
+
+  it("выходные внутри паузы не считаются", () => {
+    // Пятница 18:00 → понедельник 09:30: два часа вечера пятницы
+    // плюс полчаса утра понедельника.
+    expect(workingMinutesBetween(at("2026-09-18T13:00:00Z"), at("2026-09-21T04:30:00Z"))).toBe(150);
+  });
+
+  it("заявка в субботу ждёт с утра понедельника", () => {
+    // Суббота 10:00 → понедельник 10:00 — это один рабочий час.
+    expect(workingMinutesBetween(at("2026-09-19T05:00:00Z"), at("2026-09-21T05:00:00Z"))).toBe(60);
+  });
+
+  it("суббота целиком — ноль рабочих минут", () => {
+    expect(workingMinutesBetween(at("2026-09-19T05:00:00Z"), at("2026-09-19T09:00:00Z"))).toBe(0);
   });
 });

@@ -1,6 +1,11 @@
 import { hourOfDay } from "./format";
 import { median, minutesBetween, share } from "./stats";
-import { workingMinutesBetween, WORK_END_HOUR, WORK_START_HOUR } from "./working-time";
+import {
+  workingMinutesBetween,
+  WORK_DAYS_LABEL,
+  WORK_END_HOUR,
+  WORK_START_HOUR,
+} from "./working-time";
 
 /// Расчёты окна «Обработка». Чистые функции над строками из базы: их можно
 /// проверить тестами, не поднимая ни базу, ни amoCRM.
@@ -12,7 +17,7 @@ export const UNHANDLED_AFTER_MIN = 120;
 
 /// Подпись к любой цифре времени ответа. Без неё «15 минут» и «15 рабочих
 /// минут» выглядят одинаково, а значат разное.
-export const WORKING_HOURS_NOTE = `рабочее время, ${WORK_START_HOUR}:00–${WORK_END_HOUR}:00`;
+export const WORKING_HOURS_NOTE = `рабочее время, ${WORK_DAYS_LABEL} ${WORK_START_HOUR}:00–${WORK_END_HOUR}:00`;
 /// Быстрый ответ. Всё, что дольше, в недвижимости уже остывает.
 export const FAST_REPLY_MIN = 30;
 
