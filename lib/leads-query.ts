@@ -3,7 +3,10 @@ import { parsePeriod, since, type Period } from "./period";
 import { prisma } from "./prisma";
 import {
   bucketFor,
+  calendarDelayMinutes,
+  calendarWaitingMinutes,
   delayMinutes,
+  isUnhandled,
   UNHANDLED_AFTER_MIN,
   waitingMinutes,
   type LeadRow,
@@ -23,10 +26,14 @@ export type LeadFilter = {
 
 export type LeadListRow = LeadRow & {
   name: string;
-  /// Сколько ждали до первого звонка. Null — звонка не было.
+  /// Рабочие минуты до первого звонка. Null — звонка не было.
   delay: number | null;
-  /// Сколько ждёт прямо сейчас, если звонка так и не было.
+  /// Календарные минуты до первого звонка — для подсказки.
+  delayCalendar: number | null;
+  /// Рабочие минуты ожидания, если звонка так и не было.
   waiting: number | null;
+  /// Календарное ожидание — для подсказки.
+  waitingCalendar: number | null;
 };
 
 type Params = Record<string, string | string[] | undefined>;
@@ -61,12 +68,10 @@ export function describeFilter(filter: LeadFilter, statusName?: string | null): 
 export async function queryLeads(filter: LeadFilter, now = new Date()): Promise<LeadListRow[]> {
   // Необработанные — состояние на сейчас, а не срез периода: они и создаются
   // раньше любого выбранного окна, и период их фильтровать не должен.
+  // Порог в рабочих часах в SQL не выразить, поэтому здесь берутся все
+  // открытые без звонка, а отсечка по времени применяется ниже, в коде.
   const where = filter.unhandled
-    ? {
-        isClosed: false,
-        firstOutgoingCallAt: null,
-        createdAt: { lt: new Date(now.getTime() - UNHANDLED_AFTER_MIN * 60_000) },
-      }
+    ? { isClosed: false, firstOutgoingCallAt: null }
     : { createdAt: { gte: since(filter.days, now) } };
 
   const rows = await prisma.lead.findMany({
@@ -85,25 +90,31 @@ export async function queryLeads(filter: LeadFilter, now = new Date()): Promise<
       name: true,
       createdAt: true,
       firstOutgoingCallAt: true,
+      isClosed: true,
       responsible: { select: { name: true } },
     },
   });
 
-  const leads = rows.map((row) => {
-    const lead: LeadRow = {
-      id: row.id,
-      createdAt: row.createdAt,
-      firstOutgoingCallAt: row.firstOutgoingCallAt,
-      responsibleName: row.responsible?.name ?? null,
-    };
-    const delay = delayMinutes(lead);
-    return {
-      ...lead,
-      name: row.name,
-      delay,
-      waiting: delay === null ? waitingMinutes(lead, now) : null,
-    };
-  });
+  const leads = rows
+    .map((row) => {
+      const lead: LeadRow = {
+        id: row.id,
+        createdAt: row.createdAt,
+        firstOutgoingCallAt: row.firstOutgoingCallAt,
+        responsibleName: row.responsible?.name ?? null,
+        isClosed: row.isClosed,
+      };
+      const delay = delayMinutes(lead);
+      return {
+        ...lead,
+        name: row.name,
+        delay,
+        delayCalendar: calendarDelayMinutes(lead),
+        waiting: delay === null ? waitingMinutes(lead, now) : null,
+        waitingCalendar: delay === null ? calendarWaitingMinutes(lead, now) : null,
+      };
+    })
+    .filter((lead) => !filter.unhandled || isUnhandled(lead, now));
 
   // Корзина задержки считается в коде, а не в SQL: это разница двух полей,
   // и ради неё держать вычисляемый столбец в базе незачем.

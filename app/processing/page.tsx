@@ -10,10 +10,13 @@ import { prisma } from "@/lib/prisma";
 import {
   byHour,
   byManager,
+  calendarWaitingMinutes,
+  isUnhandled,
   summarizeReplies,
   UNHANDLED_AFTER_MIN,
   waitingMinutes,
   FAST_REPLY_MIN,
+  WORKING_HOURS_NOTE,
 } from "@/lib/processing";
 import { freshnessOf } from "@/lib/sync/status";
 
@@ -29,7 +32,7 @@ export default async function ProcessingPage(props: PageProps<"/processing">) {
   const days = parsePeriod(params.days);
   const now = new Date();
 
-  const [leadRows, unhandled, unhandledOldest, freshness] = await Promise.all([
+  const [leadRows, openWithoutCall, freshness] = await Promise.all([
     prisma.lead.findMany({
       where: { createdAt: { gte: since(days, now) } },
       select: {
@@ -40,26 +43,16 @@ export default async function ProcessingPage(props: PageProps<"/processing">) {
       },
     }),
     // Счётчик текущего состояния, а не метрика периода: на него реагируют
-    // сегодня, поэтому период экрана его не фильтрует.
-    prisma.lead.count({
-      where: {
-        isClosed: false,
-        firstOutgoingCallAt: null,
-        createdAt: { lt: new Date(now.getTime() - UNHANDLED_AFTER_MIN * 60_000) },
-      },
-    }),
+    // сегодня, поэтому период экрана его не фильтрует. Порог в рабочих часах
+    // в SQL не выразить — берём все открытые без звонка и отсекаем в коде.
     prisma.lead.findMany({
-      where: {
-        isClosed: false,
-        firstOutgoingCallAt: null,
-        createdAt: { lt: new Date(now.getTime() - UNHANDLED_AFTER_MIN * 60_000) },
-      },
+      where: { isClosed: false, firstOutgoingCallAt: null },
       orderBy: { createdAt: "asc" },
-      take: 8,
       select: {
         id: true,
         name: true,
         createdAt: true,
+        isClosed: true,
         responsible: { select: { name: true } },
       },
     }),
@@ -72,6 +65,16 @@ export default async function ProcessingPage(props: PageProps<"/processing">) {
     firstOutgoingCallAt: lead.firstOutgoingCallAt,
     responsibleName: lead.responsible?.name ?? null,
   }));
+
+  const unhandledLeads = openWithoutCall
+    .map((lead) => ({
+      ...lead,
+      firstOutgoingCallAt: null,
+      responsibleName: lead.responsible?.name ?? null,
+    }))
+    .filter((lead) => isUnhandled(lead, now));
+  const unhandled = unhandledLeads.length;
+  const unhandledOldest = unhandledLeads.slice(0, 8);
 
   const summary = summarizeReplies(leads);
   const managers = byManager(leads);
@@ -90,6 +93,8 @@ export default async function ProcessingPage(props: PageProps<"/processing">) {
             <p className="max-w-[62ch] text-sm text-ink-2">
               Самые достоверные данные пульта: время ставит система, а не человек. Считается
               по исходящим звонкам из amoCRM — переписка в мессенджерах сюда не попадает.
+              Время везде рабочее: вечер и ночь не в счёт, иначе заявка в 21:40 с ответом
+              в 09:10 выглядит как одиннадцать часов молчания.
             </p>
           </div>
           <PeriodSwitch current={days} basePath="/processing" />
@@ -115,8 +120,8 @@ export default async function ProcessingPage(props: PageProps<"/processing">) {
               {unhandled}
             </span>
             <span className="text-ink-2">
-              сделок открыты и ждут первого звонка дольше {UNHANDLED_AFTER_MIN / 60} часов —
-              прямо сейчас, независимо от выбранного периода
+              сделок открыты и ждут первого звонка дольше {UNHANDLED_AFTER_MIN / 60} рабочих
+              часов — прямо сейчас, независимо от выбранного периода
             </span>
           </div>
 
@@ -128,7 +133,7 @@ export default async function ProcessingPage(props: PageProps<"/processing">) {
                     <th className="px-3 py-2 font-medium">Сделка</th>
                     <th className="px-3 py-2 font-medium">Менеджер</th>
                     <th className="px-3 py-2 font-medium">Создана</th>
-                    <th className="px-3 py-2 text-right font-medium">Ждёт</th>
+                    <th className="px-3 py-2 text-right font-medium">Ждёт, рабочих</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -139,8 +144,11 @@ export default async function ProcessingPage(props: PageProps<"/processing">) {
                       </td>
                       <td className="px-3 py-2 text-ink-2">{lead.responsible?.name ?? "—"}</td>
                       <td className="px-3 py-2 text-ink-2">{formatDateTime(lead.createdAt)}</td>
-                      <td className="px-3 py-2 text-right font-mono tabular-nums text-crit">
-                        {formatMinutes(waitingMinutes({ ...lead, firstOutgoingCallAt: null, responsibleName: null }, now))}
+                      <td
+                        className="px-3 py-2 text-right font-mono tabular-nums text-crit"
+                        title={`По календарю: ${formatMinutes(calendarWaitingMinutes(lead, now))}`}
+                      >
+                        {formatMinutes(waitingMinutes(lead, now))}
                       </td>
                     </tr>
                   ))}
@@ -164,6 +172,7 @@ export default async function ProcessingPage(props: PageProps<"/processing">) {
               <span className="font-mono text-2xl font-semibold tabular-nums">
                 {formatMinutes(summary.medianMinutes)}
               </span>
+              <span className="text-xs text-ink-3">{WORKING_HOURS_NOTE}</span>
             </div>
             <div className="flex flex-col gap-1 bg-surface-2 px-4 py-3">
               <span className="font-mono text-[10px] uppercase tracking-[0.09em] text-ink-3">

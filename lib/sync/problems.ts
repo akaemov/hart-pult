@@ -78,7 +78,9 @@ export function detectAmoProblems(metrics: AmoMetrics): Problem[] {
     problems.push({
       severity: metrics.unhandled > 50 ? "crit" : "warn",
       title: `${metrics.unhandled} обращений висят без звонка прямо сейчас`,
-      detail: "Открытые сделки старше двух часов, по которым не было ни одного исходящего.",
+      detail:
+        "Открытые сделки, по которым не было ни одного исходящего дольше двух рабочих часов. " +
+        "Вечер и ночь в этот срок не входят.",
       action: "Разобрать очередь сегодня, а не в конце месяца.",
     });
   }

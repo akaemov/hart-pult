@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { bucketFor, byHour, byManager, delayMinutes, summarizeReplies } from "./processing";
+import {
+  bucketFor,
+  byHour,
+  byManager,
+  delayMinutes,
+  isUnhandled,
+  summarizeReplies,
+} from "./processing";
 
 const at = (iso: string) => new Date(iso);
 
@@ -18,6 +25,28 @@ describe("delayMinutes", () => {
 
   it("считает минуты до первого звонка", () => {
     expect(delayMinutes(lead("2026-09-01T04:00:00Z", "2026-09-01T04:12:00Z"))).toBe(12);
+  });
+});
+
+describe("рабочее время в задержке", () => {
+  it("ночь не считается: заявка в 21:40, звонок в 09:10 — это 10 минут", () => {
+    expect(delayMinutes(lead("2026-09-16T16:40:00Z", "2026-09-17T04:10:00Z"))).toBe(10);
+  });
+
+  it("такая сделка попадает в корзину «5–30 минут», а не «больше суток»", () => {
+    const minutes = delayMinutes(lead("2026-09-16T16:40:00Z", "2026-09-17T04:10:00Z"));
+    expect(bucketFor(minutes!).label).toBe("5–30 минут");
+  });
+
+  it("заявка ночью не числится необработанной до утра", () => {
+    const night = lead("2026-09-16T17:00:00Z", null); // 22:00 по месту
+    expect(isUnhandled(night, new Date("2026-09-16T19:00:00Z"))).toBe(false); // 00:00
+    expect(isUnhandled(night, new Date("2026-09-17T06:30:00Z"))).toBe(true); // 11:30
+  });
+
+  it("закрытую сделку никто не ждёт", () => {
+    const closed = { ...lead("2026-09-14T05:00:00Z", null), isClosed: true };
+    expect(isUnhandled(closed, new Date("2026-09-17T06:00:00Z"))).toBe(false);
   });
 });
 

@@ -1,7 +1,7 @@
 import "server-only";
 import { since, type Period } from "../period";
 import { prisma } from "../prisma";
-import { delayMinutes, UNHANDLED_AFTER_MIN } from "../processing";
+import { delayMinutes, isUnhandled } from "../processing";
 import { median } from "../stats";
 import { detectAmoProblems, type AmoMetrics, type Problem } from "./problems";
 
@@ -16,17 +16,16 @@ export type AmoReport = {
 export async function amoReport(days: Period, now = new Date()): Promise<AmoReport> {
   const from = since(days, now);
 
-  const [leads, unhandled, providerRows, callsTotal] = await Promise.all([
+  const [leads, openWithoutCall, providerRows, callsTotal] = await Promise.all([
     prisma.lead.findMany({
       where: { createdAt: { gte: from } },
       select: { createdAt: true, firstOutgoingCallAt: true, hasSource: true },
     }),
-    prisma.lead.count({
-      where: {
-        isClosed: false,
-        firstOutgoingCallAt: null,
-        createdAt: { lt: new Date(now.getTime() - UNHANDLED_AFTER_MIN * 60_000) },
-      },
+    // Порог необработанного считается в рабочих часах, а их в SQL не выразить:
+    // берём все открытые без звонка и отсекаем в коде — как на вкладке.
+    prisma.lead.findMany({
+      where: { isClosed: false, firstOutgoingCallAt: null },
+      select: { createdAt: true, firstOutgoingCallAt: true, isClosed: true },
     }),
     prisma.call.groupBy({
       by: ["provider"],
@@ -40,6 +39,10 @@ export async function amoReport(days: Period, now = new Date()): Promise<AmoRepo
   const delays = leads
     .map((lead) => delayMinutes({ ...lead, id: 0, responsibleName: null }))
     .filter((value): value is number => value !== null);
+
+  const unhandled = openWithoutCall.filter((lead) =>
+    isUnhandled({ ...lead, id: 0, responsibleName: null }, now),
+  ).length;
 
   const metrics: AmoMetrics = {
     leads: leads.length,

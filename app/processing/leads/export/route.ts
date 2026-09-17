@@ -21,7 +21,17 @@ export async function GET(request: Request) {
   const leads = await queryLeads(filter);
   const canSeeNames = user.role !== "VIEWER";
 
-  const header = ["Сделка", "id", "Менеджер", "Создана", "Первый звонок", "Ответ, мин", "Ждёт, мин"];
+  const header = [
+    "Сделка",
+    "id",
+    "Менеджер",
+    "Создана",
+    "Первый звонок",
+    "Ответ, рабочих мин",
+    "Ответ, календарных мин",
+    "Ждёт, рабочих мин",
+    "Ждёт, календарных мин",
+  ];
   const rows = leads.map((lead) => [
     canSeeNames ? lead.name : `Сделка ${lead.id}`,
     lead.id,
@@ -29,7 +39,9 @@ export async function GET(request: Request) {
     formatDateTime(lead.createdAt),
     lead.firstOutgoingCallAt ? formatDateTime(lead.firstOutgoingCallAt) : "",
     lead.delay ?? "",
+    lead.delayCalendar ?? "",
     lead.waiting ?? "",
+    lead.waitingCalendar ?? "",
   ]);
 
   // Точка с запятой и BOM: иначе Excel в русской локали склеит всё в один столбец.

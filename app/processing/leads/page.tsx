@@ -4,6 +4,7 @@ import { leadUrl } from "@/lib/amo-link";
 import { requireUser } from "@/lib/auth/dal";
 import { formatDateTime, formatMinutes } from "@/lib/format";
 import { describeFilter, parseLeadFilter, queryLeads } from "@/lib/leads-query";
+import { WORKING_HOURS_NOTE } from "@/lib/processing";
 import { prisma } from "@/lib/prisma";
 
 const PAGE_LIMIT = 300;
@@ -62,7 +63,7 @@ export default async function LeadsPage(props: PageProps<"/processing/leads">) {
                 <th className="px-3 py-2 font-medium">Менеджер</th>
                 <th className="px-3 py-2 font-medium">Создана</th>
                 <th className="px-3 py-2 font-medium">Первый звонок</th>
-                <th className="px-3 py-2 text-right font-medium">Ответ</th>
+                <th className="px-3 py-2 text-right font-medium">Ответ, рабочих</th>
               </tr>
             </thead>
             <tbody>
@@ -92,7 +93,10 @@ export default async function LeadsPage(props: PageProps<"/processing/leads">) {
                     <td className="px-3 py-2 text-ink-2">
                       {lead.firstOutgoingCallAt ? formatDateTime(lead.firstOutgoingCallAt) : "—"}
                     </td>
-                    <td className="px-3 py-2 text-right font-mono tabular-nums">
+                    <td
+                      className="px-3 py-2 text-right font-mono tabular-nums"
+                      title={`По календарю: ${formatMinutes(lead.delayCalendar ?? lead.waitingCalendar)}`}
+                    >
                       {lead.delay !== null ? (
                         formatMinutes(lead.delay)
                       ) : (
@@ -115,7 +119,8 @@ export default async function LeadsPage(props: PageProps<"/processing/leads">) {
 
         <p className="text-xs text-ink-3">
           Имена и телефоны покупателей пульт не хранит — они открываются в карточке amoCRM,
-          где права уже настроены. Время — по месту объекта.
+          где права уже настроены. Время — по месту объекта, {WORKING_HOURS_NOTE}; календарное
+          показывается подсказкой при наведении.
         </p>
       </main>
     </>
