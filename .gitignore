@@ -52,3 +52,6 @@ next-env.d.ts
 
 # Логи локального автосбора
 /logs/
+
+# Локальная база PostgreSQL
+/.pgdata/

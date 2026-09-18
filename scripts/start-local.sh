@@ -9,7 +9,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-DB_PORT=51214
+DB_PORT=5433
 APP_PORT=3050
 APP_URL="http://localhost:$APP_PORT"
 

@@ -17,7 +17,7 @@ mkdir -p logs
 # Сбор идёт только когда база отвечает: после перезагрузки Mac локальная база
 # из `prisma dev` не поднимается сама, и без этой проверки лог засыпало бы
 # одинаковыми ошибками подключения раз в пятнадцать минут.
-if ! nc -z localhost 51214 2>/dev/null; then
+if ! nc -z localhost 5433 2>/dev/null; then
   echo "$(date '+%F %T') база не запущена (npm run db:dev) — сбор пропущен" >> logs/sync.log
   exit 0
 fi

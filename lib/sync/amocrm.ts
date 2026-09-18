@@ -44,6 +44,18 @@ function chunked<T>(items: T[], size = CHUNK): T[][] {
   return out;
 }
 
+/// Первое непустое значение поля с подходящим названием.
+function fieldValue(lead: AmoLead, match: RegExp): string | null {
+  for (const field of lead.custom_fields_values ?? []) {
+    if (!match.test(field.field_name)) continue;
+    const value = (field.values ?? [])
+      .map((v) => String(v.value ?? "").trim())
+      .find((v) => v !== "");
+    if (value) return value;
+  }
+  return null;
+}
+
 function hasFilledSource(lead: AmoLead, sourceFieldIds: Set<number>): boolean {
   return (lead.custom_fields_values ?? []).some(
     (field) =>
@@ -131,6 +143,10 @@ export function amocrmCollector(days: number): Collector {
             pipelineId: lead.pipeline_id,
             isClosed: lead.status_id === WON || lead.status_id === LOST,
             hasSource: hasFilledSource(lead, sourceFieldIds),
+            sourceLabel: fieldValue(lead, /^Источник заявки$/i),
+            utmSource: fieldValue(lead, /^utm_source$/i),
+            utmCampaign: fieldValue(lead, /^utm_campaign$/i),
+            referrer: fieldValue(lead, /^utm_referrer$/i) ?? fieldValue(lead, /^referrer$/i),
             // Ответственный может быть удалён из аккаунта — тогда связи нет,
             // но сделка всё равно должна сохраниться.
             responsibleUserId: knownUsers.has(lead.responsible_user_id)

@@ -10,12 +10,13 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "db:dev": "prisma dev --name hart-pult --detach",
+    "db:dev": "bash scripts/db-local.sh start",
     "user:add": "tsx scripts/user-add.ts",
     "postinstall": "prisma generate",
     "diagnose": "tsx scripts/diagnose.ts",
     "sync": "tsx scripts/sync.ts",
-    "pult": "bash scripts/start-local.sh"
+    "pult": "bash scripts/start-local.sh",
+    "db:stop": "bash scripts/db-local.sh stop"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.0",
@@ -34,6 +35,7 @@
     "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "embedded-postgres": "^18.4.0-beta.17",
     "eslint": "^9",
     "eslint-config-next": "16.3.4",
     "prisma": "7.10.0",

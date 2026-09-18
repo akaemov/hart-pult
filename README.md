@@ -211,23 +211,21 @@ launchctl unload ~/Library/LaunchAgents/ru.hartpult.sync.recent.plist   # вык
 
 На сервере этих агентов не будет — там ту же роль выполнят systemd-таймеры.
 
-## Миграции на локальной базе
+## Локальная база
 
-`prisma dev` отдаёт одно и то же хранилище под любым именем базы, поэтому
-теневая база, которая нужна `prisma migrate dev`, там невозможна: она приезжает
-с уже созданными таблицами, и миграция падает на `type "Role" already exists`.
-Миграции здесь создаются сравнением схемы с живой базой:
+Настоящий PostgreSQL 18, который ставится вместе с зависимостями — пакет
+`embedded-postgres` привозит бинарники, Docker и Homebrew не нужны.
 
 ```
-dir="prisma/migrations/$(date +%Y%m%d%H%M%S)_имя_миграции"
-mkdir -p "$dir"
-npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script > "$dir/migration.sql"
-npx prisma db execute --file "$dir/migration.sql"
-npx prisma migrate resolve --applied "$(basename "$dir")"
+npm run db:dev    # запустить (данные в .pgdata, в git не попадает)
+npm run db:stop   # остановить
 ```
 
-На сервере с обычным PostgreSQL ничего этого не нужно: там работает
-`prisma migrate deploy`.
+Раньше здесь был `prisma dev`. От него пришлось отказаться: он обслуживает одно
+соединение за раз, поэтому открытая страница пульта и идущий сбор роняли друг
+друга с «Unable to start a transaction», а на длинных выгрузках запросы рвались
+прямо на уровне протокола. Заодно исчезла возня с миграциями: теневая база
+работает, и `prisma migrate dev` больше не нужно подменять ручным `migrate diff`.
 
 ## Устройство
 
