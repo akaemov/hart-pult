@@ -31,8 +31,17 @@ async function main() {
   const started = Date.now();
   console.log(`Сбор «${source}» за ${days} дней…`);
 
-  const { rows } = await runSync(source, COLLECTORS[source]!(days));
-  console.log(`Готово: ${rows} строк за ${Math.round((Date.now() - started) / 1000)} с.`);
+  const result = await runSync(source, COLLECTORS[source]!(days));
+
+  if (result.skipped) {
+    console.log(
+      `Пропущено: сбор «${source}» уже идёт с ${result.runningSince.toLocaleString("ru-RU")}. ` +
+        "Дождитесь его окончания или остановите прогон.",
+    );
+    return;
+  }
+
+  console.log(`Готово: ${result.rows} строк за ${Math.round((Date.now() - started) / 1000)} с.`);
 }
 
 

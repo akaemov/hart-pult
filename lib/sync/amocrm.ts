@@ -7,6 +7,7 @@ import {
   type AmoUser,
 } from "../amo";
 import { prisma } from "../prisma";
+import { withRetry } from "./retry";
 import type { Collector, SyncContext } from "./run";
 
 /// Сбор обращений и звонков из amoCRM.
@@ -29,7 +30,7 @@ const CHUNK = 100;
 /// Пакетная запись. Таймаут задан явно: по умолчанию у интерактивной
 /// транзакции 5 секунд, а локальная база из `prisma dev` выполняет запросы
 /// строго по одному и в этот лимит не укладывается.
-const TX = { timeout: 120_000, maxWait: 20_000 };
+const TX = { timeout: 180_000, maxWait: 120_000 };
 
 async function collectAll<T>(source: AsyncGenerator<T>): Promise<T[]> {
   const items: T[] = [];
@@ -78,7 +79,7 @@ export function amocrmCollector(days: number): Collector {
       });
 
       const statuses = pipeline._embedded?.statuses ?? [];
-      await prisma.$transaction(
+      await withRetry("запись пакета", () => prisma.$transaction(
         statuses.map((status) => {
           const row = {
             name: status.name,
@@ -93,13 +94,13 @@ export function amocrmCollector(days: number): Collector {
           });
         }),
         TX,
-      );
+      ));
     }
 
     const users = await collectAll(amoList<AmoUser>("/api/v4/users", "users"));
     await ctx.saveRaw("/api/v4/users", users as unknown as object[]);
     for (const batch of chunked(users)) {
-      await prisma.$transaction(
+      await withRetry("запись пакета", () => prisma.$transaction(
         batch.map((user) =>
           prisma.amoUser.upsert({
             where: { id: user.id },
@@ -108,7 +109,7 @@ export function amocrmCollector(days: number): Collector {
           }),
         ),
         TX,
-      );
+      ));
     }
 
     const leads = await collectAll(
@@ -121,7 +122,7 @@ export function amocrmCollector(days: number): Collector {
 
     const knownUsers = new Set(users.map((user) => user.id));
     for (const batch of chunked(leads)) {
-      await prisma.$transaction(
+      await withRetry("запись пакета", () => prisma.$transaction(
         batch.map((lead) => {
           const data = {
             name: lead.name,
@@ -143,7 +144,7 @@ export function amocrmCollector(days: number): Collector {
           });
         }),
         TX,
-      );
+      ));
     }
 
     const links = leads.flatMap((lead) =>
@@ -154,7 +155,9 @@ export function amocrmCollector(days: number): Collector {
     );
     await prisma.leadContact.deleteMany({ where: { leadId: { in: leads.map((l) => l.id) } } });
     for (const batch of chunked(links)) {
-      await prisma.leadContact.createMany({ data: batch, skipDuplicates: true });
+      await withRetry("связи с контактами", () =>
+        prisma.leadContact.createMany({ data: batch, skipDuplicates: true }),
+      );
     }
 
     // Звонки лежат примечаниями и на сделке, и на контакте: какой вариант
@@ -214,7 +217,7 @@ export function amocrmCollector(days: number): Collector {
 
     const callRows = [...calls.values()];
     for (const batch of chunked(callRows)) {
-      await prisma.$transaction(
+      await withRetry("запись пакета", () => prisma.$transaction(
         batch.map((call) =>
           prisma.call.upsert({
             where: { id: call.id },
@@ -223,7 +226,7 @@ export function amocrmCollector(days: number): Collector {
           }),
         ),
         TX,
-      );
+      ));
     }
 
     // Первый исходящий звонок считается один раз при сборе: иначе каждое окно
@@ -236,7 +239,7 @@ export function amocrmCollector(days: number): Collector {
     const firstByLead = new Map(firstCalls.map((row) => [row.leadId, row._min.createdAt]));
 
     for (const batch of chunked(leads)) {
-      await prisma.$transaction(
+      await withRetry("запись пакета", () => prisma.$transaction(
         batch.map((lead) =>
           prisma.lead.update({
             where: { id: lead.id },
@@ -244,7 +247,7 @@ export function amocrmCollector(days: number): Collector {
           }),
         ),
         TX,
-      );
+      ));
     }
 
     return { rows: leads.length + callRows.length };
