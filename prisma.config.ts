@@ -8,8 +8,11 @@ export default defineConfig({
   },
   datasource: {
     url: env("DATABASE_URL"),
-    // Отдельная база под теневую: с ней снова работает `prisma migrate dev`,
-    // и миграции больше не нужно собирать вручную через `migrate diff`.
-    shadowDatabaseUrl: env("SHADOW_DATABASE_URL"),
+    // Теневая база нужна только `prisma migrate dev` на машине разработчика.
+    // На сервере её нет, и требовать переменную там нельзя: без этой проверки
+    // падает даже `prisma generate`, а с ним и вся установка зависимостей.
+    ...(process.env.SHADOW_DATABASE_URL
+      ? { shadowDatabaseUrl: env("SHADOW_DATABASE_URL") }
+      : {}),
   },
 });
