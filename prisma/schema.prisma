@@ -247,3 +247,33 @@ model AvitoItem {
 
   @@id([account, avitoId])
 }
+
+/// Лот из Profitbase: квартира или помещение со своим статусом и ценой.
+///
+/// Сток у застройщика ведётся в двух экземплярах: основные проекты и копии
+/// «ДЛЯ АВИТО», из которых кормятся фиды. Копии здесь лежат рядом с основными,
+/// а не отбрасываются: расхождение между ними — это и есть проданная квартира,
+/// которая осталась в рекламе.
+model Property {
+  /// id лота в Profitbase. Он же <Id> в фиде Авито — по нему объявление
+  /// и сходится со своим лотом.
+  id          Int      @id
+  projectId   Int
+  projectName String
+  houseId     Int?
+  houseName   String
+  /// Номер квартиры. Вместе с домом образует пару, по которой лот копии
+  /// сходится со своим двойником в основном проекте.
+  number      String
+  floor       Int?
+  rooms       Int?
+  areaTotal   Float?
+  areaLiving  Float?
+  /// AVAILABLE, SOLD, BOOKED, UNAVAILABLE.
+  status      String
+  price       Int?
+  syncedAt    DateTime @updatedAt
+
+  @@index([projectName, houseName, number])
+  @@index([status])
+}

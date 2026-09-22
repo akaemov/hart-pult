@@ -1,6 +1,7 @@
 import { getCurrentUser } from "@/lib/auth/dal";
 import { accountById, ACCOUNTS } from "@/lib/avito";
 import { avitoReport } from "@/lib/report/avito";
+import { statusLabel } from "@/lib/stock-check";
 
 /// CSV с расхождениями по одному объекту: три блока — не доехало, висит лишним,
 /// разошлась цена. Открывается в Excel и уходит в Profitbase как список того,
@@ -33,6 +34,25 @@ export async function GET(request: Request) {
   lines.push([`Сверка Авито — «${check.object}»`]);
   lines.push([`Данные на ${new Date().toLocaleString("ru-RU")}`]);
   lines.push(["В фиде", check.feed, "На Авито", check.published]);
+  lines.push([]);
+
+  lines.push([`Продано, а объявление висит (${check.stock.stale.length})`]);
+  lines.push(["Секция", "Квартира", "Комнат", "Площадь, м²", "Этаж", "В проекте", "Цена в объявлении, ₽", "Ссылка"]);
+  for (const lot of check.stock.stale) {
+    lines.push([
+      lot.house,
+      lot.number,
+      lot.rooms,
+      lot.areaTotal,
+      lot.floor,
+      statusLabel(lot.status),
+      lot.price,
+      lot.url ?? "",
+    ]);
+  }
+  if (check.stock.unmatched > 0) {
+    lines.push([`Не удалось сопоставить с лотом основного проекта: ${check.stock.unmatched}`]);
+  }
   lines.push([]);
 
   lines.push([`Не доехали до Авито (${check.rejected.length})`]);

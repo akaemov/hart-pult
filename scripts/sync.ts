@@ -3,14 +3,17 @@
 import "../lib/load-env";
 import { amocrmCollector } from "../lib/sync/amocrm";
 import { avitoCollector } from "../lib/sync/avito";
+import { inventoryCollector } from "../lib/sync/inventory";
 import { runSync, type Collector } from "../lib/sync/run";
 import { SOURCES, type SourceId } from "../lib/sync/sources";
 
-/// Сборщики принимают глубину в днях. Авито глубины не имеет — и фид, и кабинет
-/// отдают срез на сейчас, поэтому аргумент там просто не используется.
+/// Сборщики принимают глубину в днях. У Авито и остатков глубины нет — и фид,
+/// и кабинет, и Profitbase отдают срез на сейчас, поэтому аргумент там просто
+/// не используется.
 const COLLECTORS: Partial<Record<SourceId, (days: number) => Collector>> = {
   amocrm: amocrmCollector,
   avito: avitoCollector,
+  inventory: inventoryCollector,
 };
 
 function arg(name: string, fallback: number): number {
@@ -33,7 +36,8 @@ async function main() {
 
   const days = arg("days", 120);
   const started = Date.now();
-  console.log(source === "avito" ? "Сбор «avito»…" : `Сбор «${source}» за ${days} дней…`);
+  const timeless = source === "avito" || source === "inventory";
+  console.log(timeless ? `Сбор «${source}»…` : `Сбор «${source}» за ${days} дней…`);
 
   const result = await runSync(source, COLLECTORS[source]!(days));
 
