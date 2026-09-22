@@ -16,7 +16,8 @@
     "diagnose": "tsx scripts/diagnose.ts",
     "sync": "tsx scripts/sync.ts",
     "pult": "bash scripts/start-local.sh",
-    "db:stop": "bash scripts/db-local.sh stop"
+    "db:stop": "bash scripts/db-local.sh stop",
+    "archive": "tsx scripts/archive.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.0",
