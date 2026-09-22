@@ -194,3 +194,56 @@ model Status {
   @@id([pipelineId, id])
   @@index([pipelineId, sort])
 }
+
+/// Лот из фида Profitbase и его судьба на Авито.
+///
+/// Ключ составной: id лота уникален внутри кабинета Profitbase, но аккаунта
+/// Авито два — у «Зари» и «Пьермонта» свои, и складывать их в одну нумерацию
+/// нельзя.
+model AvitoAd {
+  /// Идентификатор аккаунта из lib/avito.ts: zarya | piermont.
+  account String
+  /// <Id> из фида — он же id лота в Profitbase.
+  adId    String
+
+  rooms        Int?
+  /// Общая площадь. Именно её Авито сверяет с жилой и по ней отбивает лот.
+  square       Float?
+  livingSpace  Float?
+  floor        Int?
+  /// Цена в фиде. Сравнивается с ценой опубликованного объявления: расхождение
+  /// значит, что Профитбейс обновил цену, а Авито ещё нет — или наоборот.
+  price        Int?
+  /// Есть ли лот в фиде прямо сейчас. Объявление, которое было и пропало,
+  /// не удаляется: оно может висеть на Авито, и это как раз то, что ищем.
+  inFeed       Boolean  @default(true)
+
+  /// Что автозагрузка сделала с лотом в последний прогон: successful,
+  /// success_skipped, error_params и так далее.
+  sectionSlug  String?
+  sectionTitle String?
+  /// Сообщения автозагрузки как есть — и ошибки, и предупреждения.
+  messages     Json?
+  avitoId      BigInt?
+  avitoStatus  String?
+  url          String?
+  syncedAt     DateTime @updatedAt
+
+  @@id([account, adId])
+  @@index([account, avitoId])
+}
+
+/// Объявление, опубликованное на Авито, — то, что видит покупатель.
+/// Источник правды о том, что висит в продаже прямо сейчас.
+model AvitoItem {
+  account  String
+  avitoId  BigInt
+  title    String
+  address  String
+  price    Int?
+  status   String
+  url      String
+  syncedAt DateTime @updatedAt
+
+  @@id([account, avitoId])
+}

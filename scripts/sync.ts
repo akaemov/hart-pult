@@ -2,11 +2,15 @@
 /// локально — руками: npm run sync -- amocrm --days 120
 import "../lib/load-env";
 import { amocrmCollector } from "../lib/sync/amocrm";
-import { runSync } from "../lib/sync/run";
+import { avitoCollector } from "../lib/sync/avito";
+import { runSync, type Collector } from "../lib/sync/run";
 import { SOURCES, type SourceId } from "../lib/sync/sources";
 
-const COLLECTORS: Partial<Record<SourceId, (days: number) => ReturnType<typeof amocrmCollector>>> = {
+/// Сборщики принимают глубину в днях. Авито глубины не имеет — и фид, и кабинет
+/// отдают срез на сейчас, поэтому аргумент там просто не используется.
+const COLLECTORS: Partial<Record<SourceId, (days: number) => Collector>> = {
   amocrm: amocrmCollector,
+  avito: avitoCollector,
 };
 
 function arg(name: string, fallback: number): number {
@@ -29,7 +33,7 @@ async function main() {
 
   const days = arg("days", 120);
   const started = Date.now();
-  console.log(`Сбор «${source}» за ${days} дней…`);
+  console.log(source === "avito" ? "Сбор «avito»…" : `Сбор «${source}» за ${days} дней…`);
 
   const result = await runSync(source, COLLECTORS[source]!(days));
 

@@ -1,7 +1,14 @@
 /// Источники данных пульта. maxAgeMinutes — сколько данные считаются свежими:
 /// после этого окно помечается устаревшим, а не молча показывает старое.
 
-export type SourceId = "amocrm" | "inventory" | "metrika" | "direct" | "vk_ads" | "wordstat";
+export type SourceId =
+  | "amocrm"
+  | "avito"
+  | "inventory"
+  | "metrika"
+  | "direct"
+  | "vk_ads"
+  | "wordstat";
 
 export type Source = {
   id: SourceId;
@@ -33,6 +40,16 @@ export const SOURCES: readonly Source[] = [
     maxAgeMinutes: 30,
     needs: [],
     shows: ["Обработка обращений", "Воронка и лиды", "Каналы: знаменатель для CPQL"],
+    phase: "Фаза 1 — работает",
+  },
+  // Фид и кабинет — срез на сейчас: автозагрузка Авито ходит раз в час, чаще спрашивать нечего.
+  {
+    id: "avito",
+    label: "Авито",
+    feeds: "фид Profitbase, отчёт автозагрузки, опубликованные объявления",
+    maxAgeMinutes: 2 * HOUR,
+    needs: [],
+    shows: ["Сверка Авито: что не доехало, что висит лишним, где разошлась цена"],
     phase: "Фаза 1 — работает",
   },
   {

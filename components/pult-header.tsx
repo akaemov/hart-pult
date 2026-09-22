@@ -10,6 +10,7 @@ const TABS = [
   { href: "/funnel", label: "Воронка" },
   { href: "/processing", label: "Обработка" },
   { href: "/channels", label: "Источники" },
+  { href: "/avito", label: "Авито" },
 ] as const;
 
 export function PultHeader({ user, active }: { user: CurrentUser; active?: string }) {
