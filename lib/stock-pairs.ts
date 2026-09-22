@@ -34,14 +34,14 @@ export function isFeedCopy(name: string): boolean {
   return /для\s+авито/i.test(name);
 }
 
-/// Номер дома в копии помечен: «Секция Б (для фидов Авито)». Для сопоставления
-/// пометка лишняя — квартира-то та же самая.
+/// Название секции в копии помечено: «Секция Б (для фидов Авито)». Для
+/// сопоставления пометка лишняя — секция-то та же самая. Регистр сохраняется:
+/// это же название стоит в окне, и «Секция Б» там уместнее, чем «секция б».
 export function normalizeHouse(name: string): string {
   return name
     .replace(/\(\s*для\s+фидов\s+авито\s*\)/gi, "")
     .replace(/\s+/g, " ")
-    .trim()
-    .toLowerCase();
+    .trim();
 }
 
 export type ProjectPair = { copy: string; main: string };

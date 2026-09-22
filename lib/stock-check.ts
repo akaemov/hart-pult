@@ -67,7 +67,7 @@ export function statusLabel(status: string): string {
 }
 
 function twinKey(lot: Pick<StockLot, "projectName" | "houseName" | "number">): string {
-  return `${normalizeProject(lot.projectName)}|${normalizeHouse(lot.houseName)}|${lot.number.trim()}`;
+  return `${normalizeProject(lot.projectName)}|${normalizeHouse(lot.houseName).toLowerCase()}|${lot.number.trim()}`;
 }
 
 /// `object` — как объект зовут в компании: «Заря», «Пьермонт». В названиях

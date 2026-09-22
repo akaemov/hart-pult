@@ -8,6 +8,7 @@ import { summarizeRejections, type AccountCheck } from "@/lib/avito-check";
 import type { AccountReport } from "@/lib/report/avito";
 import { avitoReport } from "@/lib/report/avito";
 import { statusLabel } from "@/lib/stock-check";
+import type { Freshness } from "@/lib/sync/freshness";
 import { freshnessOf } from "@/lib/sync/status";
 
 /// Окно сверки Авито: где фид Profitbase, кабинет Авито и то, что видит
@@ -16,6 +17,11 @@ import { freshnessOf } from "@/lib/sync/status";
 const money = (value: number) => `${value.toLocaleString("ru-RU")} ₽`;
 const area = (value: number | null) =>
   value === null ? "—" : `${value.toLocaleString("ru-RU")} м²`;
+
+function staler(a: Freshness, b: Freshness): Freshness {
+  if (a.state === "never" || b.state === "never") return a.state === "never" ? a : b;
+  return a.ageMinutes >= b.ageMinutes ? a : b;
+}
 
 function Stat({ label, value, tone }: { label: string; value: number; tone?: "warn" | "crit" }) {
   const color = value === 0 ? "" : tone === "crit" ? "text-crit" : tone === "warn" ? "text-warn" : "";
@@ -246,7 +252,16 @@ function Stale({ check }: { check: AccountReport }) {
 export default async function AvitoPage() {
   const user = await requireUser();
   const now = new Date();
-  const [report, freshness] = await Promise.all([avitoReport(), freshnessOf("avito", now)]);
+  const [report, avitoFreshness, stockFreshness] = await Promise.all([
+    avitoReport(),
+    freshnessOf("avito", now),
+    freshnessOf("inventory", now),
+  ]);
+
+  // Окно стоит на двух источниках сразу, и честная отметка — по тому, который
+  // отстал сильнее: свежие объявления поверх вчерашних статусов врут так же,
+  // как и наоборот.
+  const freshness = staler(avitoFreshness, stockFreshness);
 
   return (
     <>

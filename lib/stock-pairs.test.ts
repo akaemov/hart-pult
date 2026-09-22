@@ -23,9 +23,9 @@ describe("isFeedCopy", () => {
 });
 
 describe("normalizeHouse", () => {
-  it("снимает пометку про фиды с названия секции", () => {
-    expect(normalizeHouse("Секция Б (для фидов Авито)")).toBe("секция б");
-    expect(normalizeHouse("Секция Б")).toBe("секция б");
+  it("снимает пометку про фиды, не трогая регистр", () => {
+    expect(normalizeHouse("Секция Б (для фидов Авито)")).toBe("Секция Б");
+    expect(normalizeHouse("Секция Б")).toBe("Секция Б");
   });
 });
 

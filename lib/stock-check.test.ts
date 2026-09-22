@@ -31,7 +31,7 @@ describe("checkStock", () => {
     );
 
     expect(check.stale).toHaveLength(1);
-    expect(check.stale[0]).toMatchObject({ number: "77", house: "секция а", status: "SOLD" });
+    expect(check.stale[0]).toMatchObject({ number: "77", house: "Секция А", status: "SOLD" });
     expect(check.unmatched).toBe(0);
   });
 
