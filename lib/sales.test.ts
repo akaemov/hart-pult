@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   groupStock,
+  isFlat,
   pricePerMeter,
   roomsLabel,
   roomsOrder,
@@ -169,5 +170,13 @@ describe("slowMovers: тяжёлые группы", () => {
     // Отставание в один пункт — это вес, а не беда: большая группа и
     // продаётся дольше.
     expect(slowMovers(rows, 7 / 37 + 0.01)).toEqual([]);
+  });
+});
+
+describe("isFlat", () => {
+  it("отделяет паркинг и кладовки от квартир", () => {
+    expect(isFlat("Секция А")).toBe(true);
+    expect(isFlat("Паркинг")).toBe(false);
+    expect(isFlat("Кладовые")).toBe(false);
   });
 });

@@ -5,6 +5,7 @@ import {
   AVAILABLE,
   BOOKED,
   groupStock,
+  isFlat,
   pricePerMeter,
   roomsLabel,
   roomsOrder,
@@ -120,9 +121,7 @@ export async function salesReport(now = new Date()): Promise<SalesReport> {
         price: lot.price,
       }));
 
-    // Паркинг живёт своей жизнью: метр машиноместа не сравнивается с метром
-    // квартиры, и в разрезе по комнатности ему места нет.
-    const flats = mine.filter((lot) => !/паркинг|кладов/i.test(lot.houseName));
+    const flats = mine.filter((lot) => isFlat(lot.houseName));
 
     const [total] = groupStock(flats, () => "всего");
     const bySection = groupStock(flats, (lot) => lot.houseName).sort((a, b) =>

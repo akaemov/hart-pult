@@ -1,5 +1,6 @@
 import { localDay } from "../month";
 import { pbGet } from "../profitbase";
+import { isFlat } from "../sales";
 import { prisma } from "../prisma";
 import { isFeedCopy, normalizeProject } from "../stock-pairs";
 import { withRetry } from "./retry";
@@ -94,7 +95,9 @@ async function recordDaily(rows: Row[], now = new Date()) {
 
   for (const row of rows) {
     const object = objectOf(row.projectName);
-    if (!object) continue;
+    // Срез — про квартиры: паркинг считается отдельно и здесь только размыл бы
+    // остаток. Правило то же, что и на вкладке «Продажи».
+    if (!object || !isFlat(row.houseName)) continue;
     (objects.get(object) ?? objects.set(object, []).get(object)!).push(row);
   }
 

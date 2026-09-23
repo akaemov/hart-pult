@@ -29,6 +29,14 @@ export type StockRow = {
   soldShare: number | null;
 };
 
+/// Паркинг и кладовки живут своей жизнью: метр машиноместа не сравнивается
+/// с метром квартиры, темп у них свой. Правило одно на весь пульт — и окна,
+/// и дневные срезы должны считать одно и то же, иначе цифры разъезжаются
+/// и объяснить это никому нельзя.
+export function isFlat(houseName: string): boolean {
+  return !/паркинг|кладов|машиномест/i.test(houseName);
+}
+
 export const SOLD = "SOLD";
 export const AVAILABLE = "AVAILABLE";
 export const BOOKED = "BOOKED";
