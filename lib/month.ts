@@ -55,3 +55,14 @@ export function monthsAgo(shift: number, now = new Date()): MonthRange {
 
   return { from, to, label: monthName.format(from).replace(" г.", "") };
 }
+
+/// Календарный день по времени объекта, записанный полуночью UTC.
+///
+/// В базе день — это дата, а не момент: «23 сентября» должно остаться
+/// двадцать третьим и в выгрузке, и на графике. Если хранить местную полночь
+/// как момент, то в UTC она превращается в предыдущие сутки, и ночной срез
+/// уезжает на день назад.
+export function localDay(date: Date): Date {
+  const map = new Map(parts.formatToParts(date).map((part) => [part.type, Number(part.value)]));
+  return new Date(Date.UTC(map.get("year")!, map.get("month")! - 1, map.get("day")!));
+}

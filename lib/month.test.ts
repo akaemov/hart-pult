@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { monthsAgo } from "./month";
+import { localDay, monthsAgo } from "./month";
 
 /// Объект в Екатеринбурге, UTC+5: месяц начинается в 19:00 UTC предыдущего дня.
 describe("monthsAgo", () => {
@@ -23,5 +23,16 @@ describe("monthsAgo", () => {
   it("в январе прошлый месяц — декабрь прошлого года", () => {
     const january = new Date("2026-01-10T06:00:00Z");
     expect(monthsAgo(1, january).label).toBe("декабрь 2025");
+  });
+});
+
+describe("localDay", () => {
+  it("берёт день по месту объекта, а не по UTC", () => {
+    // 22:30 по UTC — это уже следующее утро в Екатеринбурге (UTC+5).
+    expect(localDay(new Date("2026-09-22T22:30:00Z")).toISOString()).toBe("2026-09-23T00:00:00.000Z");
+  });
+
+  it("день не уезжает назад для утреннего времени", () => {
+    expect(localDay(new Date("2026-09-23T06:00:00Z")).toISOString()).toBe("2026-09-23T00:00:00.000Z");
   });
 });

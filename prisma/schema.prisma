@@ -121,6 +121,12 @@ model Lead {
   firstOutgoingCallAt DateTime?
   /// Теги сделки: по ним опознаётся заявка с сайта и признаки вроде «#безПВ».
   tags                String[]  @default([])
+  /// Бюджет сделки. Для темпа продаж нужен не только счёт квартир, но и рубли.
+  price               Int?
+  /// Когда сделка закрылась — успешно или нет. По этой дате считается темп
+  /// продаж: дата создания говорит о потоке обращений, а не о продажах,
+  /// и сделка, созданная в марте и закрытая в сентябре, попала бы не в тот месяц.
+  closedAt            DateTime?
   responsibleUserId   Int?
   responsible         AmoUser?  @relation(fields: [responsibleUserId], references: [id], onDelete: SetNull)
   syncedAt            DateTime  @updatedAt
@@ -130,6 +136,7 @@ model Lead {
 
   @@index([createdAt])
   @@index([responsibleUserId])
+  @@index([closedAt])
 }
 
 /// Связь сделки с контактом. Телефония пишет звонок либо на сделку, либо
@@ -269,6 +276,9 @@ model Property {
   number      String
   floor       Int?
   rooms       Int?
+  /// Студия. В Profitbase у неё стоит одна комната, и без этого признака
+  /// студии смешиваются с однушками — а продаются они по-разному.
+  studio      Boolean  @default(false)
   areaTotal   Float?
   areaLiving  Float?
   /// AVAILABLE, SOLD, BOOKED, UNAVAILABLE.
@@ -278,4 +288,50 @@ model Property {
 
   @@index([projectName, houseName, number])
   @@index([status])
+}
+
+/// Смена статуса лота: когда сборщик увидел, что квартира стала проданной,
+/// забронированной или снова свободной.
+///
+/// Profitbase истории не отдаёт — только состояние на сейчас. Поэтому историю
+/// пульт копит сам: без неё «темп продаж» считается лишь по сделкам amoCRM,
+/// а брони и снятия с продажи не видны вовсе.
+model StockChange {
+  id         String   @id @default(cuid())
+  propertyId Int
+  /// Объект, как его зовут в компании: «Заря», «Пьермонт». Проект может быть
+  /// переименован, а объект — нет.
+  object     String
+  houseName  String
+  number     String
+  rooms      Int?
+  areaTotal  Float?
+  price      Int?
+  fromStatus String
+  toStatus   String
+  changedAt  DateTime @default(now())
+
+  @@index([object, changedAt])
+  @@index([toStatus, changedAt])
+}
+
+/// Срез остатков на день: сколько и на какую сумму свободно, забронировано
+/// и продано. Одна строка на объект в день — для динамики, где поштучный
+/// журнал изменений избыточен.
+model StockDaily {
+  /// Календарный день по месту объекта (Екатеринбург), сохранённый как дата UTC.
+  day         DateTime
+  object      String
+  available   Int
+  booked      Int
+  sold        Int
+  unavailable Int
+  /// Метры и деньги — только по свободным: это и есть остаток, который
+  /// предстоит продать.
+  availableArea  Float
+  availableValue Float
+  syncedAt    DateTime @updatedAt
+
+  @@id([day, object])
+  @@index([object, day])
 }

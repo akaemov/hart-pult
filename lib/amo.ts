@@ -152,6 +152,9 @@ export type AmoLead = {
   responsible_user_id: number;
   status_id: number;
   pipeline_id: number;
+  price: number | null;
+  /// Момент закрытия сделки, секунды. Null у открытых.
+  closed_at: number | null;
   custom_fields_values: { field_id: number; field_name: string; values: { value: unknown }[] }[] | null;
   _embedded?: { contacts?: { id: number }[]; tags?: { id: number; name: string }[] };
 };

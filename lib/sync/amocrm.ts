@@ -142,6 +142,8 @@ export function amocrmCollector(days: number): Collector {
             statusId: lead.status_id,
             pipelineId: lead.pipeline_id,
             isClosed: lead.status_id === WON || lead.status_id === LOST,
+            price: lead.price ?? null,
+            closedAt: lead.closed_at ? new Date(lead.closed_at * 1000) : null,
             hasSource: hasFilledSource(lead, sourceFieldIds),
             sourceLabel: fieldValue(lead, /^Источник заявки$/i),
             utmSource: fieldValue(lead, /^utm_source$/i),
