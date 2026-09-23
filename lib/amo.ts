@@ -187,3 +187,59 @@ export type AmoPipeline = {
   is_main: boolean;
   _embedded?: { statuses?: AmoStatus[] };
 };
+
+/// PATCH к API — единственная запись, которую делает пульт.
+///
+/// Пульт читающий: он сводит цифры и ничего не меняет в CRM. Исключение одно —
+/// разовый перенос данных из тегов в поля, и он запускается руками, с отчётом
+/// о том, что именно изменится. Поэтому запись живёт отдельной функцией, а не
+/// общим методом на любой глагол: случайно вызвать её мимо этого сценария
+/// не выйдет.
+export async function amoPatch<T>(path: string, body: unknown): Promise<T | null> {
+  const { subdomain, token } = config();
+  const url = `https://${subdomain}.amocrm.ru${path}`;
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const wait = lastRequestAt + MIN_INTERVAL_MS - Date.now();
+    if (wait > 0) await sleep(wait);
+    lastRequestAt = Date.now();
+
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    } catch (cause) {
+      const reason = cause instanceof Error ? (cause.cause as { code?: string })?.code ?? cause.message : String(cause);
+      if (attempt === MAX_ATTEMPTS) {
+        throw new Error(`Не удалось соединиться с amoCRM (${reason}) при записи в ${path}.`);
+      }
+      await sleep(attempt * 1000);
+      continue;
+    }
+
+    if (response.status === 204) return null;
+    if (response.ok) return (await response.json()) as T;
+
+    if (response.status === 401 || response.status === 403) {
+      throw new Error(
+        `amoCRM отвечает ${response.status} на запись. У интеграции нет прав на изменение сделок — ` +
+          "выдайте их в карточке интеграции.",
+      );
+    }
+
+    const retryable = response.status === 429 || response.status >= 500;
+    if (!retryable || attempt === MAX_ATTEMPTS) {
+      throw new Error(
+        `amoCRM ответила ${response.status} на запись в ${path}: ${(await response.text()).slice(0, 300)}`,
+      );
+    }
+
+    const retryAfter = Number(response.headers.get("Retry-After"));
+    await sleep(Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : attempt * 1000);
+  }
+
+  throw new Error(`amoCRM: не удалось записать ${path} за ${MAX_ATTEMPTS} попытки`);
+}
