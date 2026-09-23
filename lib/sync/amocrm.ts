@@ -146,6 +146,7 @@ export function amocrmCollector(days: number): Collector {
             closedAt: lead.closed_at ? new Date(lead.closed_at * 1000) : null,
             hasSource: hasFilledSource(lead, sourceFieldIds),
             sourceLabel: fieldValue(lead, /^Источник заявки$/i),
+            objectLabel: fieldValue(lead, /^ЖК$/i),
             utmSource: fieldValue(lead, /^utm_source$/i),
             utmCampaign: fieldValue(lead, /^utm_campaign$/i),
             referrer: fieldValue(lead, /^utm_referrer$/i) ?? fieldValue(lead, /^referrer$/i),

@@ -64,3 +64,26 @@ describe("detectChannel", () => {
     expect(CHANNELS[CHANNELS.length - 1]).toBe("Источник не указан");
   });
 });
+
+describe("detectObject: поле «ЖК»", () => {
+  const blank = { name: null, sourceLabel: null, utmSource: null, utmCampaign: null, referrer: null };
+
+  it("верит полю прежде названия сделки", () => {
+    expect(detectObject({ ...blank, objectLabel: "Пьермонт", name: "Заявка Заря" })).toBe("Пьермонт");
+  });
+
+  it("сводит разное написание к одному объекту", () => {
+    expect(detectObject({ ...blank, objectLabel: "ЖК Заря" })).toBe("Заря");
+    expect(detectObject({ ...blank, objectLabel: "ПьермÓнт" })).toBe("Пьермонт");
+    expect(detectObject({ ...blank, objectLabel: "Ураксина" })).toBe("Ураксина");
+  });
+
+  it("на пустом поле возвращается к названию и меткам", () => {
+    expect(detectObject({ ...blank, objectLabel: null, name: "Заявка с сайта Заря" })).toBe("Заря");
+    expect(detectObject({ ...blank, objectLabel: "   " })).toBe("Не определён");
+  });
+
+  it("непонятное значение поля не считает ответом", () => {
+    expect(detectObject({ ...blank, objectLabel: "уточнить у клиента" })).toBe("Не определён");
+  });
+});

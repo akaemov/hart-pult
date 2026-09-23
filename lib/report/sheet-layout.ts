@@ -31,9 +31,18 @@ export function monthColumn(year: number, month: number): string | null {
   return index <= 65 ? columnName(index) : null; // до BM включительно
 }
 
+/// Объекты, под которые в документе заказчика заведены блоки строк.
+/// «Ураксина» сюда не входит: в таблице её блока нет, и придумывать номера
+/// строк за заказчика нельзя — выгрузка встанет не в те ячейки.
+export type SheetObject = Extract<ObjectName, "Заря" | "Пьермонт">;
+
+export function isSheetObject(object: ObjectName): object is SheetObject {
+  return object === "Заря" || object === "Пьермонт";
+}
+
 /// Строки блоков по объектам. «ВСЕГО лидов» не перечислено намеренно:
 /// там формула заказчика, и она же служит проверкой нашей суммы.
-const BLOCKS: Record<Exclude<ObjectName, "Не определён">, { first: number; qualified: number; agents: number }> = {
+const BLOCKS: Record<SheetObject, { first: number; qualified: number; agents: number }> = {
   "Заря": { first: 6, qualified: 15, agents: 16 },
   "Пьермонт": { first: 19, qualified: 28, agents: 29 },
 };
@@ -50,15 +59,15 @@ export const SHEET_CHANNELS: Channel[] = [
   "Прочие источники",
 ];
 
-export function channelRow(object: Exclude<ObjectName, "Не определён">, channel: Channel): number | null {
+export function channelRow(object: SheetObject, channel: Channel): number | null {
   const index = SHEET_CHANNELS.indexOf(channel);
   return index === -1 ? null : BLOCKS[object].first + index;
 }
 
-export function qualifiedRow(object: Exclude<ObjectName, "Не определён">): number {
+export function qualifiedRow(object: SheetObject): number {
   return BLOCKS[object].qualified;
 }
 
-export function agentsRow(object: Exclude<ObjectName, "Не определён">): number {
+export function agentsRow(object: SheetObject): number {
   return BLOCKS[object].agents;
 }

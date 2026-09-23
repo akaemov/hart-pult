@@ -27,8 +27,10 @@ import { monthKey } from "./leads-by-channel";
 /// оно заполнено у 4% сделок. Поэтому у темпа всегда есть строка
 /// «объект не определён», а у остатков её быть не может.
 
-/// Объекты, у которых есть сток. «Не определён» — это про сделки, а не про дома.
-const STOCK_OBJECTS = OBJECTS.filter((object) => object !== "Не определён");
+/// Объекты, у которых есть сток. Список не зашит: третий объект появится
+/// в Profitbase — окно возникнет само, а пустых окон по объектам, которых
+/// в стоке нет, не будет.
+const NAMED_OBJECTS = OBJECTS.filter((object) => object !== "Не определён");
 
 export type ObjectSales = {
   object: ObjectName;
@@ -73,7 +75,7 @@ const PACE_MONTHS = 12;
 function objectOfProject(projectName: string): ObjectName | null {
   if (isFeedCopy(projectName)) return null;
   const key = normalizeProject(projectName);
-  return STOCK_OBJECTS.find((object) => key.includes(normalizeProject(object))) ?? null;
+  return NAMED_OBJECTS.find((object) => key.includes(normalizeProject(object))) ?? null;
 }
 
 export async function salesReport(now = new Date()): Promise<SalesReport> {
@@ -100,6 +102,7 @@ export async function salesReport(now = new Date()): Promise<SalesReport> {
         price: true,
         closedAt: true,
         sourceLabel: true,
+        objectLabel: true,
         utmSource: true,
         utmCampaign: true,
         referrer: true,
@@ -108,7 +111,11 @@ export async function salesReport(now = new Date()): Promise<SalesReport> {
     prisma.stockDaily.findMany({ select: { day: true }, distinct: ["day"] }),
   ]);
 
-  const objects = STOCK_OBJECTS.map((object) => {
+  const withStock = NAMED_OBJECTS.filter((object) =>
+    lots.some((lot) => objectOfProject(lot.projectName) === object),
+  );
+
+  const objects = withStock.map((object) => {
     const mine: SalesLot[] = lots
       .filter((lot) => objectOfProject(lot.projectName) === object)
       .map((lot) => ({

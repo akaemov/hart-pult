@@ -47,6 +47,7 @@ export async function leadsByChannel(from: Date): Promise<{
       createdAt: true,
       statusId: true,
       sourceLabel: true,
+      objectLabel: true,
       utmSource: true,
       utmCampaign: true,
       referrer: true,
