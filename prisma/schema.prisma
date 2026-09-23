@@ -119,6 +119,8 @@ model Lead {
   /// Первый исходящий звонок после создания сделки. Денормализация: иначе
   /// каждое окно пересчитывало бы минимум по всем звонкам.
   firstOutgoingCallAt DateTime?
+  /// Теги сделки: по ним опознаётся заявка с сайта и признаки вроде «#безПВ».
+  tags                String[]  @default([])
   responsibleUserId   Int?
   responsible         AmoUser?  @relation(fields: [responsibleUserId], references: [id], onDelete: SetNull)
   syncedAt            DateTime  @updatedAt
@@ -206,17 +208,17 @@ model AvitoAd {
   /// <Id> из фида — он же id лота в Profitbase.
   adId    String
 
-  rooms        Int?
+  rooms       Int?
   /// Общая площадь. Именно её Авито сверяет с жилой и по ней отбивает лот.
-  square       Float?
-  livingSpace  Float?
-  floor        Int?
+  square      Float?
+  livingSpace Float?
+  floor       Int?
   /// Цена в фиде. Сравнивается с ценой опубликованного объявления: расхождение
   /// значит, что Профитбейс обновил цену, а Авито ещё нет — или наоборот.
-  price        Int?
+  price       Int?
   /// Есть ли лот в фиде прямо сейчас. Объявление, которое было и пропало,
   /// не удаляется: оно может висеть на Авито, и это как раз то, что ищем.
-  inFeed       Boolean  @default(true)
+  inFeed      Boolean @default(true)
 
   /// Что автозагрузка сделала с лотом в последний прогон: successful,
   /// success_skipped, error_params и так далее.

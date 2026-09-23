@@ -127,7 +127,7 @@ export function amocrmCollector(days: number): Collector {
     const leads = await collectAll(
       amoList<AmoLead>("/api/v4/leads", "leads", {
         filter: { created_at: { from, to } },
-        with: "contacts",
+        with: "contacts,tags",
       }),
     );
     await ctx.saveRaw("/api/v4/leads", leads as unknown as object[]);
@@ -147,6 +147,7 @@ export function amocrmCollector(days: number): Collector {
             utmSource: fieldValue(lead, /^utm_source$/i),
             utmCampaign: fieldValue(lead, /^utm_campaign$/i),
             referrer: fieldValue(lead, /^utm_referrer$/i) ?? fieldValue(lead, /^referrer$/i),
+            tags: (lead._embedded?.tags ?? []).map((tag) => tag.name),
             // Ответственный может быть удалён из аккаунта — тогда связи нет,
             // но сделка всё равно должна сохраниться.
             responsibleUserId: knownUsers.has(lead.responsible_user_id)

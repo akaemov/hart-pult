@@ -153,7 +153,7 @@ export type AmoLead = {
   status_id: number;
   pipeline_id: number;
   custom_fields_values: { field_id: number; field_name: string; values: { value: unknown }[] }[] | null;
-  _embedded?: { contacts?: { id: number }[] };
+  _embedded?: { contacts?: { id: number }[]; tags?: { id: number; name: string }[] };
 };
 
 export type AmoNote = {

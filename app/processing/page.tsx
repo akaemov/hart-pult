@@ -21,6 +21,8 @@ import {
   FAST_REPLY_MIN,
   WORKING_HOURS_NOTE,
 } from "@/lib/processing";
+import { leadUrl } from "@/lib/amo-link";
+import { ASSIGN_LIMIT_MIN, isSiteLead, isUnassigned } from "@/lib/site-leads";
 import { freshnessOf } from "@/lib/sync/status";
 
 const SOURCES_LABEL = "amoCRM · телефония";
@@ -45,7 +47,7 @@ export default async function ProcessingPage(props: PageProps<"/processing">) {
     responsible: { select: { name: true } },
   } as const;
 
-  const [leadRows, openWithoutCall, lastMonthRows, monthBeforeRows, freshness] = await Promise.all([
+  const [leadRows, openWithoutCall, lastMonthRows, monthBeforeRows, siteRows, freshness] = await Promise.all([
     prisma.lead.findMany({
       where: { createdAt: { gte: since(days, now) } },
       select: {
@@ -76,6 +78,17 @@ export default async function ProcessingPage(props: PageProps<"/processing">) {
     prisma.lead.findMany({
       where: { createdAt: { gte: monthBefore.from, lt: monthBefore.to } },
       select: selectLead,
+    }),
+    // Заявки с сайта: приходят на одного человека, дальше их разбирает робот
+    // в amoCRM. Если робот молчит, заявка остаётся на приёмщике.
+    prisma.lead.findMany({
+      where: {
+        createdAt: { gte: new Date(now.getTime() - 30 * 24 * 3600_000) },
+        OR: [{ tags: { has: "tilda" } }, { name: { startsWith: "Заявка с сайта" } }],
+      },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, name: true, createdAt: true, tags: true, responsibleUserId: true,
+        responsible: { select: { name: true } } },
     }),
     freshnessOf("amocrm", now),
   ]);
@@ -113,6 +126,12 @@ export default async function ProcessingPage(props: PageProps<"/processing">) {
     lastMonthRows.map(toRow),
     monthBeforeRows.map(toRow),
   );
+
+  const siteLeads = siteRows.filter(isSiteLead);
+  const unassigned = siteLeads
+    .filter(isUnassigned)
+    .map((lead) => ({ ...lead, waiting: waitingMinutes({ ...lead, firstOutgoingCallAt: null, responsibleName: null }, now) }))
+    .filter((lead) => lead.waiting > ASSIGN_LIMIT_MIN);
 
   const summary = summarizeReplies(leads);
   const managers = byManager(leads);
@@ -313,6 +332,71 @@ export default async function ProcessingPage(props: PageProps<"/processing">) {
               </tbody>
             </table>
           </div>
+        </PultWindow>
+
+        <PultWindow
+          title="Заявки с сайта без менеджера"
+          grade="A"
+          sources={SOURCES_LABEL}
+          freshness={freshness}
+          action={
+            <span className="text-ink-3">
+              Заявка с сайта приходит на приёмщика, дальше её должен разобрать робот в amoCRM.
+              Считается нераспределённой, если через {ASSIGN_LIMIT_MIN} рабочих минут ответственный
+              не сменился.
+            </span>
+          }
+        >
+          <div className="flex flex-wrap items-baseline gap-3">
+            <span className={`font-mono text-4xl font-semibold tabular-nums ${unassigned.length > 0 ? "text-crit" : "text-ok"}`}>
+              {unassigned.length}
+            </span>
+            <span className="text-ink-2">
+              из {siteLeads.length} заявок с сайта за 30 дней висят на приёмщике
+            </span>
+          </div>
+
+          {unassigned.length === 0 ? (
+            <p className="text-sm text-ink-2">
+              Все заявки распределены. Если счётчик вырос — значит распределение в amoCRM перестало
+              срабатывать, как это случилось 13 августа: тогда поломку заметили только через пять недель.
+            </p>
+          ) : (
+            <div className="overflow-x-auto border border-line">
+              <table className="w-full min-w-[560px] text-sm">
+                <thead>
+                  <tr className="border-b border-line-2 bg-surface-2 text-left font-mono text-[11px] uppercase tracking-[0.1em] text-ink-3">
+                    <th className="px-3 py-2 font-medium">Заявка</th>
+                    <th className="px-3 py-2 font-medium">Ответственный</th>
+                    <th className="px-3 py-2 font-medium">Создана</th>
+                    <th className="px-3 py-2 text-right font-medium">Ждёт, рабочих</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {unassigned.slice(0, 10).map((lead) => {
+                    const url = leadUrl(lead.id);
+                    return (
+                      <tr key={lead.id} className="border-b border-line last:border-b-0">
+                        <td className="px-3 py-2">
+                          {url ? (
+                            <a href={url} target="_blank" rel="noreferrer"
+                              className="underline decoration-line-2 underline-offset-4 hover:text-accent">
+                              {canSeeNames ? lead.name : `Сделка ${lead.id}`}
+                            </a>
+                          ) : canSeeNames ? lead.name : `Сделка ${lead.id}`}
+                        </td>
+                        <td className="px-3 py-2 text-ink-2">{lead.responsible?.name ?? "—"}</td>
+                        <td className="px-3 py-2 text-ink-2">{formatDateTime(lead.createdAt)}</td>
+                        <td className="px-3 py-2 text-right font-mono tabular-nums text-crit">
+                          {formatMinutes(lead.waiting)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </PultWindow>
 
         <PultWindow
