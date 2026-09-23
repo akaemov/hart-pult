@@ -10,7 +10,13 @@
 import "../lib/load-env";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { amoList, amoPatch, type AmoLead } from "../lib/amo";
-import { classifyTag, planLead, type LeadTags, type Plan } from "../lib/amo-tags";
+import {
+  classifyTag,
+  NEW_SOURCE_OPTIONS,
+  planLead,
+  type LeadTags,
+  type Plan,
+} from "../lib/amo-tags";
 
 type Field = { id: number; name: string; type: string; enums?: { id: number; value: string }[] };
 
@@ -49,6 +55,31 @@ function valueOf(lead: AmoLead, fieldId: number): string | null {
   return value ?? null;
 }
 
+/// Завести в справочнике «Источник заявки» значения, которых там нет.
+///
+/// Отдельным шагом и отдельным флагом: это правка настроек чужой CRM, а не
+/// данных, и делать её заодно с переносом нельзя — человек должен сначала
+/// увидеть список и согласиться.
+async function addOptions(field: Field): Promise<number> {
+  const have = new Set((field.enums ?? []).map((item) => item.value.trim().toLowerCase()));
+  const missing = NEW_SOURCE_OPTIONS.filter((value) => !have.has(value.toLowerCase()));
+
+  if (missing.length === 0) {
+    console.log("Все значения уже заведены — справочник трогать не нужно.\n");
+    return 0;
+  }
+
+  console.log(`Завожу значения «${SOURCE_FIELD}»: ${missing.join(", ")}`);
+  await amoPatch(`/api/v4/leads/custom_fields/${field.id}`, {
+    enums: [
+      ...(field.enums ?? []).map((item) => ({ id: item.id, value: item.value })),
+      ...missing.map((value) => ({ value })),
+    ],
+  });
+  console.log(`Готово: добавлено ${missing.length}.\n`);
+  return missing.length;
+}
+
 async function main() {
   const days = arg("days", 420);
   const apply = process.argv.includes("--apply");
@@ -56,8 +87,16 @@ async function main() {
 
   console.log(`Разбор тегов за ${days} дней${apply ? " — С ЗАПИСЬЮ В amoCRM" : " (только отчёт)"}…\n`);
 
-  const { object: objectField, source: sourceField } = await fields();
-  const options = new Map((sourceField.enums ?? []).map((item) => [item.value, item.id]));
+  let { object: objectField, source: sourceField } = await fields();
+
+  if (process.argv.includes("--add-options")) {
+    const added = await addOptions(sourceField);
+    // Новые значения получают id только на стороне amoCRM — перечитываем поле,
+    // иначе писать будет нечем.
+    if (added > 0) ({ object: objectField, source: sourceField } = await fields());
+  }
+
+  const options = new Map((sourceField.enums ?? []).map((item) => [item.value.trim(), item.id]));
 
   const leads: AmoLead[] = [];
   for await (const lead of amoList<AmoLead>("/api/v4/leads", "leads", {
@@ -70,8 +109,8 @@ async function main() {
   const tagged = leads.filter((lead) => (lead._embedded?.tags ?? []).length > 0);
   console.log(`Сделок за период: ${leads.length}, из них с тегами: ${tagged.length}`);
 
-  const writes: { id: number; plan: Extract<Plan, { kind: "write" }>; lead: AmoLead }[] = [];
-  const conflicts: { lead: AmoLead; plan: Extract<Plan, { kind: "conflict" }> }[] = [];
+  const writes: { id: number; plan: Plan; lead: AmoLead }[] = [];
+  const conflicts = new Map<string, { field: string; values: string[]; leads: number[] }>();
   const undecided = new Map<string, number>();
   const missingOptions = new Set<string>();
 
@@ -89,16 +128,22 @@ async function main() {
     };
 
     const plan = planLead(input);
-    if (plan.kind === "conflict") conflicts.push({ lead, plan });
-    if (plan.kind !== "write") continue;
 
-    // Значение списка, которого нет в справочнике, записать нельзя: сначала
-    // его заводят в amoCRM руками, иначе поле молча останется пустым.
-    if (plan.source && !options.has(plan.source)) {
-      missingOptions.add(plan.source);
-      continue;
+    for (const conflict of plan.conflicts) {
+      const key = `${conflict.field}: ${conflict.values.join(" и ")}`;
+      const row = conflicts.get(key) ?? { field: conflict.field, values: conflict.values, leads: [] };
+      row.leads.push(lead.id);
+      conflicts.set(key, row);
     }
 
+    // Значение списка, которого нет в справочнике, записать нельзя: сначала
+    // его заводят в amoCRM, иначе поле молча останется пустым.
+    if (plan.source && !options.has(plan.source)) {
+      missingOptions.add(plan.source);
+      plan.source = null;
+    }
+
+    if (plan.object === null && plan.source === null) continue;
     writes.push({ id: lead.id, plan, lead });
   }
 
@@ -115,12 +160,14 @@ async function main() {
   console.log(`\nБудет заполнено «${SOURCE_FIELD}»: ${[...bySource.values()].reduce((a, b) => a + b, 0)}`);
   for (const [value, count] of [...bySource].sort((a, b) => b[1] - a[1])) console.log(`   ${value}: ${count}`);
 
-  if (conflicts.length > 0) {
-    console.log(`\nПропущено из-за противоречия в тегах: ${conflicts.length}`);
-    for (const { lead, plan } of conflicts.slice(0, 10)) {
-      console.log(`   #${lead.id}: ${plan.field} — ${plan.values.join(" и ")}`);
+  if (conflicts.size > 0) {
+    const rows = [...conflicts.entries()].sort((a, b) => b[1].leads.length - a[1].leads.length);
+    const total = rows.reduce((sum, [, row]) => sum + row.leads.length, 0);
+    console.log(`\nПоля, оставленные пустыми из-за противоречия в тегах: ${total}`);
+    for (const [key, row] of rows.slice(0, 12)) {
+      console.log(`   ${String(row.leads.length).padStart(4)}  ${key}`);
     }
-    if (conflicts.length > 10) console.log(`   …и ещё ${conflicts.length - 10}`);
+    if (rows.length > 12) console.log(`   …и ещё ${rows.length - 12} сочетаний`);
   }
 
   if (missingOptions.size > 0) {
