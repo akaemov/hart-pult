@@ -34,7 +34,7 @@ export async function GET(request: Request) {
 
   lines.push([`Остатки — «${sales.object}»`]);
   lines.push([`Данные на ${new Date().toLocaleString("ru-RU")}`]);
-  lines.push(["Свободно", sales.available, "Бронь", sales.booked, "Продано", sales.sold]);
+  lines.push(["Свободно", sales.available, "Бронь", sales.booked, "Продано", sales.sold, "Снято с продажи", sales.unavailable]);
   lines.push(["Остаток, м²", sales.availableArea, "Остаток, ₽", sales.availableValue]);
   lines.push(["Цена метра по свободным, ₽", sales.pricePerMeter]);
   lines.push([]);
@@ -44,13 +44,14 @@ export async function GET(request: Request) {
     ["Комнатность", sales.byRooms, sales.meterByRooms],
   ] as const) {
     lines.push([`Остатки по разрезу «${header}»`]);
-    lines.push([header, "Свободно", "Бронь", "Продано", "Продано, %", "Остаток, м²", "Остаток, ₽", "Цена м², ₽"]);
+    lines.push([header, "Свободно", "Бронь", "Продано", "Снято", "Продано, %", "Остаток, м²", "Остаток, ₽", "Цена м², ₽"]);
     for (const row of rows) {
       lines.push([
         row.key,
         row.available,
         row.booked,
         row.sold,
+        row.unavailable,
         percent(row.soldShare),
         row.availableArea,
         row.availableValue,

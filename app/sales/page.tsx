@@ -18,8 +18,13 @@ const MONTH_NAMES = [
 ];
 
 const money = (value: number) => `${Math.round(value).toLocaleString("ru-RU")} ₽`;
-const short = (value: number) =>
-  value >= 1_000_000 ? `${(value / 1_000_000).toFixed(1).replace(".", ",")} млн ₽` : money(value);
+/// Деньги в остатке — это миллиарды, и «3746,0 млн ₽» читается хуже,
+/// чем «3,7 млрд ₽»: в таблице глаз считает разряды, а не цифры.
+const short = (value: number) => {
+  if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(1).replace(".", ",")} млрд ₽`;
+  if (value >= 1_000_000) return `${Math.round(value / 1_000_000)} млн ₽`;
+  return money(value);
+};
 const share = (value: number | null) => (value === null ? "—" : `${Math.round(value * 100)}%`);
 
 function monthLabel(key: string): string {
@@ -55,6 +60,7 @@ function StockTable({
             <th className="px-3 py-2 text-right font-medium">Свободно</th>
             <th className="px-3 py-2 text-right font-medium">Бронь</th>
             <th className="px-3 py-2 text-right font-medium">Продано</th>
+            <th className="px-3 py-2 text-right font-medium">Снято</th>
             <th className="px-3 py-2 text-right font-medium">Продано, %</th>
             <th className="px-3 py-2 text-right font-medium">Остаток, м²</th>
             <th className="px-3 py-2 text-right font-medium">Остаток, ₽</th>
@@ -72,6 +78,9 @@ function StockTable({
                   {row.booked === 0 ? <span className="text-ink-3">—</span> : row.booked}
                 </td>
                 <td className="px-3 py-1.5 text-right font-mono tabular-nums">{row.sold}</td>
+                <td className="px-3 py-1.5 text-right font-mono tabular-nums text-ink-3">
+                  {row.unavailable === 0 ? "—" : row.unavailable}
+                </td>
                 <td className="px-3 py-1.5 text-right font-mono tabular-nums">{share(row.soldShare)}</td>
                 <td className="px-3 py-1.5 text-right font-mono tabular-nums">
                   {row.availableArea.toLocaleString("ru-RU")}
@@ -117,9 +126,17 @@ function ObjectWindows({
       }
     >
       <div className="grid gap-px bg-line sm:grid-cols-2 lg:grid-cols-5">
-        <Stat label="Свободно" value={String(sales.available)} note={`из ${sales.lots} квартир`} />
+        <Stat
+          label="Свободно"
+          value={String(sales.available)}
+          note={`в проекте ${sales.lots} квартир`}
+        />
         <Stat label="Бронь" value={String(sales.booked)} />
-        <Stat label="Продано" value={String(sales.sold)} note={share(sales.soldShare)} />
+        <Stat
+          label="Продано"
+          value={String(sales.sold)}
+          note={`${share(sales.soldShare)} от выставленного`}
+        />
         <Stat
           label="Остаток"
           value={short(sales.availableValue)}
@@ -132,6 +149,11 @@ function ObjectWindows({
         />
       </div>
 
+      <p className="text-sm text-ink-2">
+        Доля проданного считается от того, что выставлялось: снятые с продажи в знаменатель
+        не идут — их не продавали и не пытались. У объекта таких {sales.unavailable}.
+      </p>
+
       <StockTable rows={sales.bySection} header="Секция" />
       <StockTable rows={sales.byRooms} header="Комнатность" meters={sales.meterByRooms} />
 
@@ -143,13 +165,17 @@ function ObjectWindows({
               <li key={row.key} className="border-l-2 border-warn pl-3">
                 <span className="font-medium text-ink">{row.key}</span> — продано {share(row.soldShare)}{" "}
                 против {share(sales.soldShare)} по объекту. В остатке {row.available}{" "}
-                {row.available === 1 ? "квартира" : "квартир"} на {short(row.availableValue)}.
+                {row.available === 1 ? "квартира" : "квартир"} на {short(row.availableValue)}
+                {row.reason === "weight"
+                  ? ` — это ${share(row.valueShare)} всего остатка объекта: пока не уйдут они, не уйдёт и объект.`
+                  : "."}
               </li>
             ))}
           </ul>
           <p className="text-xs text-ink-3">
-            Отставание меньше 10 процентных пунктов не показывается: это шум выборки. Остаток
-            меньше пяти квартир — тоже.
+            Показываются группы, отставшие от объекта больше чем на 10 процентных пунктов, и те,
+            в которых заперта больше половины денежного остатка. Остаток меньше пяти квартир
+            не показывается: это не разговор.
           </p>
         </div>
       ) : (

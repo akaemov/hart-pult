@@ -98,30 +98,62 @@ export type SlowMover = {
   behind: number;
   available: number;
   availableValue: number;
+  /// Какая часть денежного остатка объекта заперта в этой группе.
+  valueShare: number;
+  /// Почему группа попала в список: отстаёт по доле или держит остаток.
+  reason: "lag" | "weight";
 };
 
-/// Что не разбирают: группы, которые продаются заметно хуже объекта в целом
-/// и при этом ещё лежат в остатке.
+/// Что не разбирают: группы, которые продаются хуже объекта в целом, и группы,
+/// в которых заперта основная часть остатка.
+///
+/// Два правила, потому что беда бывает двух видов. Первая — группа явно
+/// отстаёт: её не берут. Вторая — группа идёт почти вровень, но весит столько,
+/// что судьба объекта решается ею одной: отставание в пять пунктов на двух
+/// третях остатка стоит дороже, чем в двадцать на трёх квартирах.
 ///
 /// Пороги заданы здесь, а не разбросаны по странице: отставание меньше десяти
-/// процентных пунктов — это шум выборки, а остаток меньше пяти квартир не
-/// стоит разговора с отделом продаж.
+/// процентных пунктов — шум выборки, остаток меньше пяти квартир не стоит
+/// разговора с отделом продаж, «основная часть» — это больше половины денег,
+/// и для тяжёлой группы хватает половины порога отставания.
 export const LAG_POINTS = 0.1;
 export const MIN_REMAINDER = 5;
+export const HEAVY_SHARE = 0.5;
+
+/// Доли считаются делением, и ровно десять пунктов получаются как 0,09999…
+/// Без допуска такая группа проваливается мимо порога, хотя по смыслу
+/// стоит на нём.
+function lagging(behind: number): boolean {
+  return behind >= LAG_POINTS - 1e-9;
+}
 
 export function slowMovers(rows: StockRow[], overallShare: number | null): SlowMover[] {
   if (overallShare === null) return [];
 
+  const totalValue = rows.reduce((sum, row) => sum + row.availableValue, 0);
+
   return rows
     .filter((row) => row.soldShare !== null && row.available >= MIN_REMAINDER)
-    .map((row) => ({
-      key: row.key,
-      soldShare: row.soldShare!,
-      behind: overallShare - row.soldShare!,
-      available: row.available,
-      availableValue: row.availableValue,
-    }))
-    .filter((row) => row.behind >= LAG_POINTS)
+    .map((row) => {
+      const behind = overallShare - row.soldShare!;
+      const valueShare = totalValue === 0 ? 0 : row.availableValue / totalValue;
+      return {
+        key: row.key,
+        soldShare: row.soldShare!,
+        behind,
+        available: row.available,
+        availableValue: row.availableValue,
+        valueShare,
+        // Отставание важнее веса: группу, которую не берут вовсе, надо назвать
+        // первой причиной, даже если денег в ней меньше.
+        reason: lagging(behind) ? ("lag" as const) : ("weight" as const),
+      };
+    })
+    .filter(
+      (row) =>
+        lagging(row.behind) ||
+        (row.valueShare >= HEAVY_SHARE && row.behind >= LAG_POINTS / 2 - 1e-9),
+    )
     .sort((a, b) => b.behind - a.behind);
 }
 

@@ -35,6 +35,9 @@ export type ObjectSales = {
   available: number;
   booked: number;
   sold: number;
+  /// Снятые с продажи: в долю проданного они не идут, но в стоке лежат,
+  /// и без них не сходится общее число квартир.
+  unavailable: number;
   /// Метры и деньги остатка.
   availableArea: number;
   availableValue: number;
@@ -135,6 +138,7 @@ export async function salesReport(now = new Date()): Promise<SalesReport> {
       available: total?.available ?? 0,
       booked: total?.booked ?? 0,
       sold: total?.sold ?? 0,
+      unavailable: total?.unavailable ?? 0,
       availableArea: total?.availableArea ?? 0,
       availableValue: total?.availableValue ?? 0,
       soldShare: total?.soldShare ?? null,

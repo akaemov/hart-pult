@@ -111,7 +111,8 @@ describe("slowMovers", () => {
   });
 
   it("не жалуется на группу, которая идёт вровень", () => {
-    expect(slowMovers(rows, 0.3)).toEqual([]);
+    // Доля по объекту почти совпадает с долей группы — отставания нет.
+    expect(slowMovers(rows, 0.21)).toEqual([]);
   });
 });
 
@@ -136,5 +137,37 @@ describe("salesByMonth", () => {
   it("сделку без суммы считает штукой, но не рублями", () => {
     const [row] = salesByMonth([{ closedAt: new Date("2026-09-03T10:00:00Z"), price: null, object: "Заря" }], key);
     expect(row).toEqual({ month: "2026-09", deals: 1, value: 0 });
+  });
+});
+
+describe("slowMovers: тяжёлые группы", () => {
+  const rows = groupStock(
+    [
+      // Двушки: отстают всего на несколько пунктов, но в них весь остаток.
+      ...Array.from({ length: 30 }, () => lot({ rooms: 2, status: "AVAILABLE", areaTotal: 60, price: 15_000_000 })),
+      ...Array.from({ length: 7 }, () => lot({ rooms: 2, status: "SOLD" })),
+      ...Array.from({ length: 6 }, () => lot({ rooms: 1, status: "AVAILABLE", areaTotal: 30, price: 7_000_000 })),
+      ...Array.from({ length: 5 }, () => lot({ rooms: 1, status: "SOLD" })),
+    ],
+    (l) => `${l.rooms}`,
+  );
+
+  it("называет группу, в которой заперта половина остатка, при небольшом отставании", () => {
+    const overall = 12 / 48;
+    const slow = slowMovers(rows, overall);
+    const heavy = slow.find((row) => row.key === "2");
+    expect(heavy).toBeDefined();
+    expect(heavy!.reason).toBe("weight");
+    expect(heavy!.valueShare).toBeGreaterThan(0.5);
+  });
+
+  it("не тащит в список группу, которая идёт лучше объекта", () => {
+    expect(slowMovers(rows, 0.1)).toEqual([]);
+  });
+
+  it("не жалуется на тяжёлую группу, которая почти не отстаёт", () => {
+    // Отставание в один пункт — это вес, а не беда: большая группа и
+    // продаётся дольше.
+    expect(slowMovers(rows, 7 / 37 + 0.01)).toEqual([]);
   });
 });
