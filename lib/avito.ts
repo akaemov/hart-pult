@@ -225,13 +225,35 @@ export async function* avitoPages<T>(
 
 /// Фид Profitbase: открытый XML, авторизация не нужна. Выгрузка на пару сотен
 /// лотов весит под мегабайт и отдаётся секунд за десять.
+///
+/// Ночью Profitbase регулярно отвечает 502 — видимо, обслуживание. Само по себе
+/// это не беда: следующий часовой прогон проходит. Но прогон падал целиком,
+/// и в истории источника копились красные строки, за которыми переставали
+/// замечать настоящие поломки. Поэтому здесь свои повторы.
 export async function fetchFeed(account: Account): Promise<string> {
-  const response = await fetch(feedUrl(account), { signal: AbortSignal.timeout(120_000) });
-  if (!response.ok) {
+  for (let attempt = 1; ; attempt++) {
+    let response: Response;
+    try {
+      response = await fetch(feedUrl(account), { signal: AbortSignal.timeout(120_000) });
+    } catch (cause) {
+      if (attempt === MAX_ATTEMPTS) {
+        const reason = cause instanceof Error ? cause.message : String(cause);
+        throw new Error(`Фид «${account.object}» не ответил за ${MAX_ATTEMPTS} попытки: ${reason}`);
+      }
+      await sleep(attempt * 5000);
+      continue;
+    }
+
+    if (response.ok) return response.text();
+
+    if (response.status >= 500 && attempt < MAX_ATTEMPTS) {
+      await sleep(attempt * 5000);
+      continue;
+    }
+
     throw new Error(
       `Фид «${account.object}» отдал ${response.status}. Проверьте ${account.env}_FEED_URL ` +
         "и то, что выгрузка в Profitbase включена.",
     );
   }
-  return response.text();
 }
