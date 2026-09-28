@@ -37,6 +37,9 @@ export async function GET(request: Request) {
   lines.push(["Свободно", sales.available, "Бронь", sales.booked, "Продано", sales.sold, "Снято с продажи", sales.unavailable]);
   lines.push(["Остаток, м²", sales.availableArea, "Остаток, ₽", sales.availableValue]);
   lines.push(["Цена метра по свободным, ₽", sales.pricePerMeter]);
+  lines.push([`Темп продаж, м²/мес (${sales.paceLabel})`, sales.pace.perMonth]);
+  lines.push(["Продаж за период, шт", sales.pace.deals, "их площадь, м²", sales.pace.area]);
+  lines.push(["Остатка хватит на, мес", sales.monthsLeft]);
   lines.push([]);
 
   for (const [header, rows, meters] of [

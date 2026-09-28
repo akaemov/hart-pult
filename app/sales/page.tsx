@@ -163,10 +163,12 @@ function ObjectWindows({
           ` У ${sales.pace.withoutArea} сделок не указана квартира — в метрах их нет.`}
       </p>
 
-      <p className="text-sm text-ink-2">
-        Доля проданного считается от того, что выставлялось: снятые с продажи в знаменатель
-        не идут — их не продавали и не пытались. У объекта таких {sales.unavailable}.
-      </p>
+      {sales.unavailable > 0 && (
+        <p className="text-sm text-ink-2">
+          Доля проданного считается от того, что выставлялось: снятые с продажи в знаменатель
+          не идут — их не продавали и не пытались. У объекта таких {sales.unavailable}.
+        </p>
+      )}
 
       <StockTable rows={sales.bySection} header="Секция" />
       <StockTable rows={sales.byRooms} header="Комнатность" meters={sales.meterByRooms} />
