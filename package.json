@@ -18,7 +18,8 @@
     "pult": "bash scripts/start-local.sh",
     "db:stop": "bash scripts/db-local.sh stop",
     "archive": "tsx scripts/archive.ts",
-    "amo:tags": "tsx scripts/amo-tags.ts"
+    "amo:tags": "tsx scripts/amo-tags.ts",
+    "amo:cleanup": "tsx scripts/amo-cleanup.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.0",
