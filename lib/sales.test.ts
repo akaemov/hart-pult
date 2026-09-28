@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   groupStock,
   isFlat,
+  monthsOfStock,
+  salesPace,
   pricePerMeter,
   roomsLabel,
   roomsOrder,
@@ -178,5 +180,70 @@ describe("isFlat", () => {
     expect(isFlat("Секция А")).toBe(true);
     expect(isFlat("Паркинг")).toBe(false);
     expect(isFlat("Кладовые")).toBe(false);
+  });
+});
+
+describe("salesPace", () => {
+  const from = new Date("2026-06-01T00:00:00Z");
+  const to = new Date("2026-09-01T00:00:00Z");
+
+  it("считает метры в месяц по закрытым сделкам", () => {
+    const pace = salesPace(
+      [
+        { closedAt: new Date("2026-06-10T00:00:00Z"), areaTotal: 60 },
+        { closedAt: new Date("2026-07-15T00:00:00Z"), areaTotal: 40 },
+        { closedAt: new Date("2026-08-20T00:00:00Z"), areaTotal: 50 },
+      ],
+      from,
+      to,
+      3,
+    );
+    expect(pace.area).toBe(150);
+    expect(pace.deals).toBe(3);
+    expect(pace.perMonth).toBe(50);
+  });
+
+  it("не берёт сделки вне окна", () => {
+    const pace = salesPace(
+      [
+        { closedAt: new Date("2026-05-31T23:00:00Z"), areaTotal: 100 },
+        { closedAt: new Date("2026-09-01T00:00:00Z"), areaTotal: 100 },
+        { closedAt: new Date("2026-07-01T00:00:00Z"), areaTotal: 30 },
+      ],
+      from,
+      to,
+      3,
+    );
+    expect(pace.deals).toBe(1);
+    expect(pace.area).toBe(30);
+  });
+
+  it("сделку без квартиры считает штукой, но не метрами", () => {
+    const pace = salesPace(
+      [
+        { closedAt: new Date("2026-07-01T00:00:00Z"), areaTotal: null },
+        { closedAt: new Date("2026-07-02T00:00:00Z"), areaTotal: 60 },
+      ],
+      from,
+      to,
+      3,
+    );
+    expect(pace.deals).toBe(2);
+    expect(pace.withoutArea).toBe(1);
+    expect(pace.area).toBe(60);
+  });
+
+  it("на пустом периоде не делит на ноль", () => {
+    expect(salesPace([], from, to, 3).perMonth).toBe(0);
+  });
+});
+
+describe("monthsOfStock", () => {
+  it("делит остаток на темп", () => {
+    expect(monthsOfStock(1200, 100)).toBe(12);
+  });
+
+  it("на нулевом темпе молчит, а не показывает бесконечность", () => {
+    expect(monthsOfStock(1200, 0)).toBeNull();
   });
 });

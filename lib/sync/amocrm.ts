@@ -56,6 +56,16 @@ function fieldValue(lead: AmoLead, match: RegExp): string | null {
   return null;
 }
 
+/// Числовое значение поля. Отдел продаж заполняет id помещения руками,
+/// и там встречается и «15036787», и «15036787 ». Нечисловое значение —
+/// это не ноль, а отсутствие ответа.
+function numberValue(lead: AmoLead, match: RegExp): number | null {
+  const raw = fieldValue(lead, match);
+  if (raw === null) return null;
+  const value = Number(raw.replace(/\s/g, ""));
+  return Number.isInteger(value) && value > 0 ? value : null;
+}
+
 function hasFilledSource(lead: AmoLead, sourceFieldIds: Set<number>): boolean {
   return (lead.custom_fields_values ?? []).some(
     (field) =>
@@ -147,6 +157,7 @@ export function amocrmCollector(days: number): Collector {
             hasSource: hasFilledSource(lead, sourceFieldIds),
             sourceLabel: fieldValue(lead, /^Источник заявки$/i),
             objectLabel: fieldValue(lead, /^ЖК$/i),
+            propertyId: numberValue(lead, /^ID Помещения$/i),
             utmSource: fieldValue(lead, /^utm_source$/i),
             utmCampaign: fieldValue(lead, /^utm_campaign$/i),
             referrer: fieldValue(lead, /^utm_referrer$/i) ?? fieldValue(lead, /^referrer$/i),

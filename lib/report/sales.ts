@@ -6,17 +6,21 @@ import {
   BOOKED,
   groupStock,
   isFlat,
+  monthsOfStock,
   pricePerMeter,
+  salesPace,
   roomsLabel,
   roomsOrder,
   salesByMonth,
   slowMovers,
   type MonthSales,
+  type Pace,
   type SalesLot,
   type SlowMover,
   type StockRow,
 } from "../sales";
 import { isFeedCopy, normalizeHouse, normalizeProject } from "../stock-pairs";
+import { monthsAgo } from "../month";
 import { monthKey } from "./leads-by-channel";
 
 /// Вкладка «Продажи»: остатки из Profitbase и темп продаж из amoCRM.
@@ -49,6 +53,11 @@ export type ObjectSales = {
   bySection: StockRow[];
   byRooms: StockRow[];
   slow: SlowMover[];
+  /// Темп продаж за три полных месяца и на сколько при нём хватит остатка.
+  pace: Pace;
+  monthsLeft: number | null;
+  /// Подпись периода темпа: «июн — авг».
+  paceLabel: string;
   /// Цена метра по комнатности: где-то метр дороже, и видно, за счёт чего.
   meterByRooms: { key: string; value: number | null }[];
 };
@@ -72,6 +81,10 @@ const WON = 142;
 /// Глубина темпа продаж: год закрытых сделок.
 const PACE_MONTHS = 12;
 
+/// Сколько полных месяцев берём на темп в метрах. Один месяц пляшет от одной
+/// крупной сделки, год не замечает разворота — три показывают нынешний темп.
+const PACE_WINDOW = 3;
+
 function objectOfProject(projectName: string): ObjectName | null {
   if (isFeedCopy(projectName)) return null;
   const key = normalizeProject(projectName);
@@ -82,7 +95,14 @@ export async function salesReport(now = new Date()): Promise<SalesReport> {
   const from = new Date(now);
   from.setMonth(from.getMonth() - (PACE_MONTHS - 1));
 
-  const [lots, deals, days] = await Promise.all([
+  // Три последних полных месяца: текущий идёт, и включать его — значит
+  // занижать темп тем сильнее, чем ближе к началу месяца.
+  const first = monthsAgo(PACE_WINDOW, now);
+  const last = monthsAgo(1, now);
+  const paceWindow = { from: first.from, to: last.to };
+  const paceLabel = `${first.label.replace(/ \d{4}$/, "")} — ${last.label}`;
+
+  const [lots, deals, sold, days] = await Promise.all([
     prisma.property.findMany({
       select: {
         projectName: true,
@@ -93,6 +113,7 @@ export async function salesReport(now = new Date()): Promise<SalesReport> {
         areaTotal: true,
         status: true,
         price: true,
+        id: true,
       },
     }),
     prisma.lead.findMany({
@@ -108,8 +129,16 @@ export async function salesReport(now = new Date()): Promise<SalesReport> {
         referrer: true,
       },
     }),
+    // Продажи с привязкой к квартире: метры берутся у лота, а не у сделки —
+    // в amoCRM площадь заполняют руками и не всегда.
+    prisma.lead.findMany({
+      where: { statusId: WON, closedAt: { gte: paceWindow.from, lt: paceWindow.to }, propertyId: { not: null } },
+      select: { closedAt: true, propertyId: true },
+    }),
     prisma.stockDaily.findMany({ select: { day: true }, distinct: ["day"] }),
   ]);
+
+  const areaById = new Map(lots.map((lot) => [lot.id, lot]));
 
   const withStock = NAMED_OBJECTS.filter((object) =>
     lots.some((lot) => objectOfProject(lot.projectName) === object),
@@ -138,9 +167,26 @@ export async function salesReport(now = new Date()): Promise<SalesReport> {
       (a, b) => roomsOrder(a.key) - roomsOrder(b.key),
     );
 
+    // Продажа относится к объекту по своей квартире, а не по меткам сделки:
+    // лот знает свой проект точно.
+    const soldHere = sold
+      .filter((deal) => {
+        const lot = areaById.get(deal.propertyId!);
+        return lot !== undefined && objectOfProject(lot.projectName) === object && isFlat(lot.houseName);
+      })
+      .map((deal) => ({
+        closedAt: deal.closedAt!,
+        areaTotal: areaById.get(deal.propertyId!)?.areaTotal ?? null,
+      }));
+
+    const pace = salesPace(soldHere, paceWindow.from, paceWindow.to, PACE_WINDOW);
+
     return {
       object,
       lots: flats.length,
+      pace,
+      monthsLeft: monthsOfStock(total?.availableArea ?? 0, pace.perMonth),
+      paceLabel,
       available: total?.available ?? 0,
       booked: total?.booked ?? 0,
       sold: total?.sold ?? 0,

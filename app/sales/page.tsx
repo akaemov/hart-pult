@@ -125,7 +125,7 @@ function ObjectWindows({
         </Link>
       }
     >
-      <div className="grid gap-px bg-line sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-px bg-line sm:grid-cols-2 lg:grid-cols-6">
         <Stat
           label="Свободно"
           value={String(sales.available)}
@@ -147,7 +147,21 @@ function ObjectWindows({
           value={sales.pricePerMeter === null ? "—" : money(sales.pricePerMeter)}
           note="по свободным"
         />
+        <Stat
+          label="Хватит на"
+          value={sales.monthsLeft === null ? "—" : `${sales.monthsLeft.toLocaleString("ru-RU")} мес`}
+          note={`темп ${Math.round(sales.pace.perMonth).toLocaleString("ru-RU")} м²/мес`}
+        />
       </div>
+
+      <p className="text-sm text-ink-2">
+        Темп — по закрытым сделкам за {sales.paceLabel}: {sales.pace.deals}{" "}
+        {sales.pace.deals === 1 ? "продажа" : "продаж"} на{" "}
+        {Math.round(sales.pace.area).toLocaleString("ru-RU")} м². Текущий месяц не считается: он
+        ещё идёт и занижал бы темп тем сильнее, чем ближе к его началу.
+        {sales.pace.withoutArea > 0 &&
+          ` У ${sales.pace.withoutArea} сделок не указана квартира — в метрах их нет.`}
+      </p>
 
       <p className="text-sm text-ink-2">
         Доля проданного считается от того, что выставлялось: снятые с продажи в знаменатель

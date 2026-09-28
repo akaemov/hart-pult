@@ -187,3 +187,46 @@ export function salesByMonth(deals: ClosedDeal[], monthKey: (date: Date) => stri
 
   return [...months.values()];
 }
+
+export type SoldLot = { closedAt: Date; areaTotal: number | null };
+
+export type Pace = {
+  /// Сколько полных месяцев взято в расчёт.
+  months: number;
+  /// Продано за эти месяцы: метры и штуки.
+  area: number;
+  deals: number;
+  /// Метров в месяц — то, чем меряют темп у застройщика.
+  perMonth: number;
+  /// Сделки без привязки к квартире: в штуках они есть, в метрах их нет.
+  withoutArea: number;
+};
+
+/// Темп продаж в метрах за месяц.
+///
+/// Берутся только полные календарные месяцы: текущий идёт, и включать его —
+/// значит каждый раз занижать темп тем сильнее, чем ближе к началу месяца.
+/// По той же причине темп считается за три месяца, а не за один: одна крупная
+/// сделка в месяц с десятью продажами сдвигает картину вдвое.
+export function salesPace(lots: SoldLot[], from: Date, to: Date, months: number): Pace {
+  const inRange = lots.filter((lot) => lot.closedAt >= from && lot.closedAt < to);
+  const withArea = inRange.filter((lot) => lot.areaTotal !== null && lot.areaTotal > 0);
+  const area = withArea.reduce((sum, lot) => sum + (lot.areaTotal ?? 0), 0);
+
+  return {
+    months,
+    area: Math.round(area * 100) / 100,
+    deals: inRange.length,
+    perMonth: months === 0 ? 0 : Math.round((area / months) * 10) / 10,
+    withoutArea: inRange.length - withArea.length,
+  };
+}
+
+/// На сколько месяцев хватит остатка при нынешнем темпе.
+///
+/// Null, когда темп нулевой: «бесконечность» на экране пульта — это не ответ,
+/// а способ спрятать то, что за три месяца не продано ничего.
+export function monthsOfStock(availableArea: number, perMonth: number): number | null {
+  if (perMonth <= 0) return null;
+  return Math.round((availableArea / perMonth) * 10) / 10;
+}
