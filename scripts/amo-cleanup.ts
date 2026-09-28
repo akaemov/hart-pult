@@ -1,13 +1,14 @@
 /// Разбор полей и тегов amoCRM: что занято, что пусто и что можно убрать.
 ///
 ///   npm run amo:cleanup          — отчёт, ничего не меняет
+///   npm run amo:cleanup -- --apply — удалить пустые ничьи поля
 ///
 /// Удаление поля уносит с собой все его значения, удаление тега — все его
 /// пометки, и вернуть их нельзя. Поэтому скрипт только считает и раскладывает
 /// по кучкам, а решение принимает человек по списку.
 import "../lib/load-env";
 import { writeFileSync, mkdirSync } from "node:fs";
-import { amoGet, amoList, type AmoLead } from "../lib/amo";
+import { amoDelete, amoGet, amoList, type AmoLead } from "../lib/amo";
 
 type Field = { id: number; name: string; type: string; enums?: { id: number; value: string }[] };
 type Tag = { id: number; name: string };
@@ -23,6 +24,14 @@ const INTEGRATION = [/^utm_/i, /^openstat_/i, /^ДКТ:/i, /^ЦОВ:/i, /^MANGO/
   /^gclid$/i, /^yclid$/i, /^fbclid$/i, /^gclientid$/i, /^_ym_/i, /^from$/i, /^referrer$/i];
 
 const matches = (name: string, list: RegExp[]) => list.some((re) => re.test(name.trim()));
+
+/// Теги через API не удаляются: amoCRM отвечает 405 и на
+/// DELETE /api/v4/leads/tags/{id}, и на DELETE /api/v4/leads/tags с телом.
+/// Проверено 28.09.2026 на мусорном теге. Снять тег со сделок скрипт может
+/// (это обычный PATCH сделки), а вычистить сам тег из справочника — только
+/// человек в интерфейсе.
+const TAGS_ARE_UI_ONLY =
+  "Теги удаляются только руками в amoCRM: API на удаление отвечает 405.";
 
 async function main() {
   const fields: Field[] = [];
@@ -78,6 +87,19 @@ async function main() {
   console.log(`\n=== Теги в работе: ${tags.length - unused.length}`);
   for (const t of tags.filter((x) => (tagUse.get(x.name) ?? 0) > 0).sort((a, b) => (tagUse.get(b.name) ?? 0) - (tagUse.get(a.name) ?? 0))) {
     console.log(`   ${String(tagUse.get(t.name)).padStart(5)}  ${t.name}`);
+  }
+
+  if (process.argv.includes("--apply")) {
+    console.log(`\n=== Удаляю пустые ничьи поля: ${emptyOwn.length}`);
+    for (const field of emptyOwn) {
+      const result = await amoDelete(`/api/v4/leads/custom_fields/${field.id}`);
+      const ok = result.status === 204 || result.status === 200;
+      console.log(`   ${ok ? "удалено" : `ОШИБКА ${result.status}`}  ${field.name} ${result.text}`);
+    }
+    console.log(`\n${TAGS_ARE_UI_ONLY}`);
+  } else if (emptyOwn.length > 0 || unused.length > 0) {
+    console.log("\nНичего не удалено. Поля: npm run amo:cleanup -- --apply");
+    console.log(TAGS_ARE_UI_ONLY);
   }
 
   mkdirSync("reports", { recursive: true });

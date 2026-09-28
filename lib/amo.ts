@@ -188,6 +188,23 @@ export type AmoPipeline = {
   _embedded?: { statuses?: AmoStatus[] };
 };
 
+/// DELETE к API. Как и PATCH, живёт отдельной функцией и вызывается только
+/// из ручных скриптов чистки: автоматические сборы ничего не удаляют.
+export async function amoDelete(path: string, body?: unknown): Promise<{ status: number; text: string }> {
+  const { subdomain, token } = config();
+  const wait = lastRequestAt + MIN_INTERVAL_MS - Date.now();
+  if (wait > 0) await sleep(wait);
+  lastRequestAt = Date.now();
+
+  const response = await fetch(`https://${subdomain}.amocrm.ru${path}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+
+  return { status: response.status, text: (await response.text()).slice(0, 300) };
+}
+
 /// PATCH к API — единственная запись, которую делает пульт.
 ///
 /// Пульт читающий: он сводит цифры и ничего не меняет в CRM. Исключение одно —
